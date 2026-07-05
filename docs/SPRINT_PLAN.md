@@ -1,6 +1,6 @@
 # Financial AI Agent — 14-Day Solo-Dev Sprint Plan (Reactive Mode Only)
 
-**Stack:** React · FastAPI · PostgreSQL · Chroma DB · LangGraph · Wirefinance API
+**Stack:** React · FastAPI · PostgreSQL · Chroma DB · LangGraph · yfinance
 **Scope:** Reactive chat mode only. Proactive/background research mode is explicitly deferred.
 
 ---
@@ -64,19 +64,33 @@ So the sequencing rule is:
 
 ---
 
-## Sprint 2 (Days 4–6): Tool Belt I — Market Data & Ticker Resolution
+## Sprint 2 (Days 4–6): Tool Belt I — Market Data & Asset Resolution
 
 **Objective:** Build and independently verify the tools that don't require the agent to exist yet.
 
-**Tasks:**
-- Wirefinance API client wrapper: handles auth, rate limiting, and a thin caching layer (even an in-memory TTL cache or a `market_data_cache` Postgres table is fine — you *will* hit rate limits during dev/testing without this).
-- Tools, each with a strict Pydantic input/output schema:
-  - `get_market_data(ticker)` — current price, volume, day change.
-  - `get_historical_data(ticker, range)` — OHLCV series.
-  - `identify_ticker(query)` — fuzzy-match company names/aliases to tickers (e.g., "Apple" → `AAPL`, "Reliance" → `RELIANCE.NS`). This is the most fail-prone tool — test it with messy, real user phrasing, not clean input.
-- Expose each as a plain FastAPI endpoint first (e.g. `/tools/market-data`) and test via Swagger UI/pytest — **before** touching LangGraph.
+**Provider:** yfinance (unofficial but free; provider is abstracted behind a `MarketDataProvider` Protocol so Kite Connect / Upstox can be swapped in by changing one file).
 
-**Definition of Done:** Each tool, called directly (not through the agent), returns correct structured JSON for at least 10 varied real-world inputs, including messy ones (lowercase names, partial names, common misspellings for ticker resolution).
+**Tasks:**
+- yfinance provider wrapper with a DB caching layer (`market_snapshots` Postgres table). Quote TTL: 90 s. Historical bars for closed prior-day sessions are treated as immutable (TTL 365 d).
+- New `instruments` table for alias overrides and lazy-populated instrument metadata.
+- Three tools, each with a strict Pydantic input/output schema:
+  - `resolve_asset(query)` → `AssetResolution` — maps free-text company names/aliases to one or more `Asset` candidates with exchange labels and confidence scores. Ambiguous inputs (e.g. `"tata motors"`) must return **both** NSE and BSE candidates, never silently collapse to one.
+  - `get_quote(ticker)` → `MarketQuote` — price, day change, day change %, volume, 52-week high/low, staleness flag.
+  - `get_historical_data(ticker, range, interval)` → `HistoricalDataResponse` — OHLCV series, provider-adjusted closes.
+- Expose each as a plain FastAPI endpoint under `/tools/` and test via Swagger UI / pytest — **before** touching LangGraph.
+
+**Endpoints:**
+```
+GET /tools/resolve-asset?query=reliance
+GET /tools/quote?ticker=INFY.NS
+GET /tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d
+```
+
+**Explicitly out of scope for Sprint 2:** fundamentals (P/E, EPS, revenue), news, earnings, dividends, corporate actions, analyst estimates.
+
+**Tool architecture note (Raw vs. Semantic layers):** Sprint 2 builds Layer 1 — pure deterministic fetch tools. Layer 2 tools (`compare_assets`, `assess_valuation`) are deterministic *compositions* over Layer 1 outputs with zero LLM math; they land in Sprint 4/5. This layering is now the stated organizing principle for all future tool development.
+
+**Definition of Done:** All three tools, called directly (not through the agent), return correct structured JSON for 10+ inputs including deliberately ambiguous ones (`"tata motors"` → both NSE/BSE candidates, not silently one). Cache hit is verified by confirming `fetched_at` does not change on a repeat call within the TTL window.
 
 ---
 

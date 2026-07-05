@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db import get_session, init_db
 from app.graph import chat_graph
+from app.market_data.router import router as market_data_router
 from app.portfolio_service import (
     PortfolioValidationError,
     get_portfolio,
@@ -36,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(market_data_router)
 
 
 def utc_now() -> str:

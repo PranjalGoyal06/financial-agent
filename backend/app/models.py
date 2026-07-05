@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -83,4 +83,51 @@ class HoldingModel(Base):
     purchase_date: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class MarketSnapshotModel(Base):
+    """Cached market data payloads — quote and historical responses."""
+
+    __tablename__ = "market_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    ticker: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    snapshot_type: Mapped[str] = mapped_column(
+        String(40), nullable=False
+    )  # "quote" | "historical"
+    params_hash: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True
+    )  # SHA-256 of (ticker, type, range, interval)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    fresh_until: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+
+class InstrumentModel(Base):
+    """Instrument metadata — exchange, aliases, sector.
+
+    Populated lazily from successful resolver calls; can be seeded manually.
+    Serves as an override layer when the upstream search returns no results for
+    a known alias.
+    """
+
+    __tablename__ = "instruments"
+
+    ticker: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    exchange: Mapped[str] = mapped_column(String(10), nullable=False)
+    sector: Mapped[str | None] = mapped_column(String(120))
+    industry: Mapped[str | None] = mapped_column(String(120))
+    asset_class: Mapped[str] = mapped_column(String(40), nullable=False)
+    aliases: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]"
+    )  # JSON array of lowercase aliases, e.g. ["tata motors", "tatamotor"]
+    last_synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
     )

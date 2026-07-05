@@ -95,3 +95,18 @@ Regulatory and legal boundaries are not parameters to optimize within — they a
 *This demands: compliance checking as a pre-condition that must pass before any recommendation reaches the investor, not as a post-hoc review.*
 
 ---
+
+**12. Tools are Layered, Not Flat**
+
+Deterministic tools fall into two distinct layers and must never be conflated:
+
+- **Layer 1 — Raw fetch:** Pure, stateless data retrieval with no transformation or inference (`resolve_asset`, `get_quote`, `get_historical_data`). A Layer 1 tool does exactly one thing: call a data source, validate the shape, return it. Its output is suitable for direct citation.
+- **Layer 2 — Semantic composition:** Deterministic computation *over* Layer 1 outputs (`compare_assets`, `assess_valuation`). No LLM math. No new data fetching. Inputs are always validated Layer 1 results.
+
+The LLM only ever operates on Layer 2 outputs (or Layer 1 outputs directly when no aggregation is needed) — it never performs the underlying arithmetic or fetch. This directly implements Principle 1 (Zero Hallucination) and Principle 8 (Inference/Execution Separation) at the tool boundary.
+
+Mixing layers — writing a tool that both fetches data and derives metrics from it — is an architecture violation. Each tool must be assignable to exactly one layer.
+
+*This demands: every new tool classified as Layer 1 or Layer 2 before implementation; Layer 2 tools list their Layer 1 dependencies explicitly in their schema docstrings.*
+
+---
