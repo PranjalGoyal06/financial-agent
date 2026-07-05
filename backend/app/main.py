@@ -1,19 +1,34 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.db import get_session, init_db
 from app.graph import chat_graph
+from app.portfolio_service import (
+    PortfolioValidationError,
+    get_portfolio,
+    replace_portfolio_from_csv,
+)
 from app.schemas import ChatHealthResponse, ChatRequest
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    await init_db()
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -81,3 +96,65 @@ def chat(request: ChatRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.get("/portfolio")
+async def portfolio(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    return await get_portfolio(session, user_id=settings.default_user_id)
+
+
+@app.post("/portfolio/upload", status_code=status.HTTP_201_CREATED)
+async def upload_portfolio(
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    filename = file.filename or ""
+    if not filename.lower().endswith(".csv"):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Portfolio upload must be a CSV file.",
+                "errors": [
+                    {
+                        "row": 1,
+                        "field": "file",
+                        "message": "filename must end with .csv.",
+                    }
+                ],
+            },
+        )
+
+    try:
+        csv_text = (await file.read()).decode("utf-8")
+    except UnicodeDecodeError:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Portfolio CSV must be UTF-8 encoded.",
+                "errors": [
+                    {
+                        "row": 1,
+                        "field": "file",
+                        "message": "file could not be decoded as UTF-8.",
+                    }
+                ],
+            },
+        )
+
+    try:
+        return await replace_portfolio_from_csv(
+            session,
+            user_id=settings.default_user_id,
+            csv_text=csv_text,
+            source_filename=filename,
+        )
+    except PortfolioValidationError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=exc.as_response(),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Portfolio persistence failed.",
+        ) from exc

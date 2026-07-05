@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     app_name: str = "SCALE Finance Agent"
     api_prefix: str = ""
     default_user_id: str = "local-user"
+    database_url: str = Field(
+        default="postgresql+asyncpg://scale:scale_dev_password@127.0.0.1:5432/scale_finance",
+        validation_alias="DATABASE_URL",
+    )
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
     groq_model: str | None = Field(default=None, validation_alias="GROQ_MODEL")
     cors_origins: list[str] = [

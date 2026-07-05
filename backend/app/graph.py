@@ -58,7 +58,9 @@ def call_llm(message: str) -> tuple[str, str, bool]:
     except Exception:
         return local_response(message), "local-response", True
 
-    content = response.content if isinstance(response.content, str) else str(response.content)
+    content = (
+        response.content if isinstance(response.content, str) else str(response.content)
+    )
     return content, settings.groq_model, False
 
 

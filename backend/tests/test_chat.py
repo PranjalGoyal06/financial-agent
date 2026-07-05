@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
+import pytest
+from app.config import settings
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def test_health_reports_chat_runtime() -> None:
@@ -18,7 +19,9 @@ def test_health_reports_chat_runtime() -> None:
     }
 
 
-def test_chat_streams_token_and_final_events() -> None:
+def test_chat_streams_token_and_final_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "groq_api_key", None)
+    monkeypatch.setattr(settings, "groq_model", None)
     client = TestClient(app)
 
     response = client.post("/chat", json={"message": "Hello"})

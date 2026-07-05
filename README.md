@@ -9,6 +9,8 @@ The current application includes:
 - React frontend in `frontend/`
 - FastAPI backend in `backend/`
 - Server-sent events chat endpoint at `POST /chat`
+- Portfolio CSV upload endpoint at `POST /portfolio/upload`
+- Persisted portfolio endpoint at `GET /portfolio`
 - Health endpoint at `GET /health`
 - Local user stub with no authentication
 - Docker Compose services for Postgres and Chroma
@@ -85,4 +87,5 @@ npm run build
 
 - Frontend: `http://127.0.0.1:5173/`
 - Backend health: `http://127.0.0.1:8000/health`
+- Portfolio: `http://127.0.0.1:8000/portfolio`
 - Chroma: `http://127.0.0.1:8001/`
