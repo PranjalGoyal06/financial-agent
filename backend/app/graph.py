@@ -32,7 +32,7 @@ def local_response(message: str) -> str:
 
 def call_llm(message: str) -> tuple[str, str, bool]:
     if not settings.groq_api_key or not settings.groq_model:
-        return local_response(message), "local-response", True
+        raise ValueError("Groq API key or model is not configured.")
 
     from langchain_core.messages import HumanMessage, SystemMessage
     from langchain_groq import ChatGroq
@@ -42,21 +42,18 @@ def call_llm(message: str) -> tuple[str, str, bool]:
         model=settings.groq_model,
         temperature=0.2,
     )
-    try:
-        response = model.invoke(
-            [
-                SystemMessage(
-                    content=(
-                        "You are SCALE Finance Agent. Answer plainly and keep the "
-                        "response focused on the user's message. Do not use tools, "
-                        "market data, portfolio data, or recommendations yet."
-                    )
-                ),
-                HumanMessage(content=message),
-            ]
-        )
-    except Exception:
-        return local_response(message), "local-response", True
+    response = model.invoke(
+        [
+            SystemMessage(
+                content=(
+                    "You are SCALE Finance Agent. Answer plainly and keep the "
+                    "response focused on the user's message. Do not use tools, "
+                    "market data, portfolio data, or recommendations yet."
+                )
+            ),
+            HumanMessage(content=message),
+        ]
+    )
 
     content = (
         response.content if isinstance(response.content, str) else str(response.content)

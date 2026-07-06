@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,7 +30,12 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="SCALE_",
-        env_file=(".env", "backend/.env"),
+        env_file=(
+            str(Path(__file__).resolve().parent.parent.parent / ".env"),
+            str(Path(__file__).resolve().parent.parent / ".env"),
+            ".env",
+            "backend/.env"
+        ),
         extra="ignore",
     )
 

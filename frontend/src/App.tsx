@@ -1,14 +1,21 @@
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { marked } from "marked";
+
+function Markdown({ content }: { content: string }) {
+  const rawHtml = marked.parse(content, { async: false }) as string;
+  return <div className="message-content" dangerouslySetInnerHTML={{ __html: rawHtml }} />;
+}
 
 type Message = {
   id: number;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "error";
   content: string;
 };
 
 type StreamEvent =
   | { event: "run_start"; data: { stage: string; user_id: string; timestamp: string } }
   | { event: "token"; data: { token: string } }
+  | { event: "error"; data: { message: string } }
   | {
       event: "final";
       data: {
@@ -212,6 +219,7 @@ export function App() {
       const decoder = new TextDecoder();
       let buffer = "";
       let assistantText = "";
+      let hasError = false;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -234,6 +242,17 @@ export function App() {
             setDraft(assistantText);
           }
 
+          if (parsed.event === "error") {
+            setMessages((current) => [
+              ...current,
+              { id: nextId.current++, role: "error", content: parsed.data.message },
+            ]);
+            setDraft("");
+            setStatus("Stream failed");
+            hasError = true;
+            break;
+          }
+
           if (parsed.event === "final") {
             setStatus(
               parsed.data.used_local_response
@@ -243,12 +262,12 @@ export function App() {
           }
         }
 
-        if (done) {
+        if (done || hasError) {
           break;
         }
       }
 
-      if (assistantText) {
+      if (assistantText && !hasError) {
         setMessages((current) => [
           ...current,
           { id: nextId.current++, role: "assistant", content: assistantText },
@@ -257,6 +276,14 @@ export function App() {
       }
     } catch (error: unknown) {
       setStatus(error instanceof Error ? error.message : "Chat stream failed");
+      setMessages((current) => [
+        ...current,
+        {
+          id: nextId.current++,
+          role: "error",
+          content: error instanceof Error ? error.message : "Chat stream failed",
+        },
+      ]);
     } finally {
       setIsStreaming(false);
     }
@@ -351,13 +378,13 @@ export function App() {
           {messages.map((message) => (
             <article className={`message message--${message.role}`} key={message.id}>
               <span>{message.role}</span>
-              <p>{message.content}</p>
+              <Markdown content={message.content} />
             </article>
           ))}
           {draft ? (
             <article className="message message--assistant message--streaming">
               <span>assistant</span>
-              <p>{draft}</p>
+              <Markdown content={draft} />
             </article>
           ) : null}
         </div>
