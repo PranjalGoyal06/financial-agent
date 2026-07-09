@@ -331,7 +331,7 @@ export function App() {
   const [chatSessionQuery, setChatSessionQuery] = useState("");
   const [fallbackWelcome] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)]);
   const [theme, setTheme] = useState<ThemeMode>(() => {
-    const storedTheme = localStorage.getItem("scale-theme");
+    const storedTheme = localStorage.getItem("paisa-theme");
     if (storedTheme === "light" || storedTheme === "dark") {
       return storedTheme;
     }
@@ -502,7 +502,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("scale-theme", theme);
+    localStorage.setItem("paisa-theme", theme);
   }, [theme]);
 
   function navigate(route: RouteId) {
@@ -1600,11 +1600,11 @@ export function App() {
       <aside className="sidebar" aria-label="Primary navigation">
         <button className="brand-lockup" type="button" onClick={() => navigate("dashboard")}>
           <div className="brand-mark" aria-hidden="true">
-            S
+            P
           </div>
           <div>
-            <strong>SCALE Finance Agent</strong>
-            <span>Portfolio intelligence</span>
+            <strong>PAISA</strong>
+            <span>AI Agent for Finance</span>
           </div>
         </button>
 

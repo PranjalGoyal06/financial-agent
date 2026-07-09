@@ -1,4 +1,4 @@
-# SCALE MVP — Investment Intelligence Agent
+# PAISA — AI Agent for Finance
 
 ## Updated MVP Architecture Plan
 
@@ -10,7 +10,7 @@ This plan includes only architectural and product decisions that are high-confid
 
 ## 1. Product Description
 
-SCALE is a portfolio-aware investment intelligence system for individual investors. It helps the user understand their portfolio, analyse holdings and watchlist companies, inspect risk, reason about market/news context, and receive structured investment recommendations.
+PAISA (Portfolio Analysis and Investment Strategy Agent) is a portfolio-aware investment intelligence system for individual investors. It helps the user understand their portfolio, analyse holdings and watchlist companies, inspect risk, reason about market/news context, and receive structured investment recommendations.
 
 The system has two interaction modes:
 
@@ -777,7 +777,7 @@ Example wording:
 
 ```text
 Suggested action: Reduce exposure
-This is an advisory recommendation only. No trade will be executed by SCALE.
+This is an advisory recommendation only. No trade will be executed by PAISA.
 ```
 
 Future broker integration, if ever added, must be a separate execution service behind explicit human approval.
@@ -1166,4 +1166,4 @@ The MVP is successful if it can demonstrate the following:
 
 The central product promise is:
 
-> SCALE gives the investor a portfolio-aware, evidence-backed, risk-first AI research assistant whose recommendations are structured, traceable, and bounded by human decision-making.
+> PAISA gives the investor a portfolio-aware, evidence-backed, risk-first AI research assistant whose recommendations are structured, traceable, and bounded by human decision-making.

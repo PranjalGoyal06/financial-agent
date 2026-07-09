@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "SCALE Finance Agent"
+    app_name: str = "AI Agent for Finance"
     api_v1_prefix: str = "/api/v1"
     chat_orchestration: str = "reactive_graph"
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
         return value.strip().lower()
 
     model_config = SettingsConfigDict(
-        env_prefix="SCALE_",
+        env_prefix="PAISA_",
         env_file=(".env", "backend/.env"),
         extra="ignore",
     )

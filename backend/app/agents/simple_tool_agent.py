@@ -12,6 +12,7 @@ from app.db.repositories.holdings_repository import DEFAULT_HOLDINGS_REPOSITORY
 from app.integrations import yfinance_client
 from app.services.market_data_service import DEFAULT_MARKET_DATA_SERVICE
 from app.services.portfolio_service import DEFAULT_PORTFOLIO_SERVICE
+from app.prompts.manager import render_prompt
 
 MAX_TOOL_CALLS = 6
 SIMPLE_TOOL_NODES = {
@@ -293,14 +294,7 @@ def _build_final_response(
 
 
 def _system_prompt() -> str:
-    return (
-        "You are a portfolio-aware financial analysis assistant. Use tools whenever "
-        "the question needs portfolio holdings, market prices, ticker news, or math. "
-        "Do not invent holdings, prices, news, or calculations. Use run_quant_analysis "
-        "for arithmetic instead of calculating in prose. Keep the final answer concise "
-        "and demo-friendly, and mention the tools used. You cannot place trades or "
-        "take brokerage actions."
-    )
+    return render_prompt("simple_tool_agent/system_prompt.yaml")
 
 
 def run_simple_tool_agent(

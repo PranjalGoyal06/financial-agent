@@ -29,6 +29,7 @@ from app.agents.reactive.schemas import (
     model_to_dict,
 )
 from app.agents.reactive.state import ReactiveState
+from app.prompts.manager import render_prompt
 from app.db.repositories.audit_repository import (
     DEFAULT_AUDIT_REPOSITORY,
     AuditRepository,
@@ -455,18 +456,9 @@ def load_baseline_context(
 
 
 def plan_retrieval(state: ReactiveState) -> dict[str, Any]:
-    prompt = "\n\n".join(
-        [
-            "You classify SCALE reactive-chat user turns. Do not answer the user.",
-            "Return only a RetrievalPlan object.",
-            "Use unclear only when classification is genuinely impossible.",
-            "Baseline context summary:\n" + _json_for_prompt(_baseline_summary(state)),
-            (
-                "Available retrieval sources: market snapshots, fundamentals, "
-                "recent news, research artifacts, portfolio allocation, "
-                "concentration, prior recommendations."
-            ),
-        ]
+    prompt = render_prompt(
+        "reactive/plan_retrieval.yaml",
+        baseline_summary=_json_for_prompt(_baseline_summary(state)),
     )
     plan = _invoke_groq_structured(prompt, RetrievalPlan, state["user_query"])
     if not isinstance(plan, RetrievalPlan):
@@ -688,7 +680,7 @@ def execute_retrieval(
                         "recommendation", recommendation.recommendation_id
                     ),
                     source_type="recommendation",
-                    provider="scale",
+                    provider="paisa",
                     fetched_at=_utc_now(),
                     quality_tier="fresh",
                     payload=asdict(recommendation),
@@ -869,19 +861,12 @@ def final_reasoning(state: ReactiveState) -> dict[str, Any]:
             "parsed_output": model_to_dict(output),
         }
 
-    prompt = "\n\n".join(
-        [
-            "You are SCALE's reactive investment assistant.",
-            "Answer using only the sealed evidence pack and baseline context.",
-            "Cite only evidence IDs from the evidence pack. Do not invent data.",
-            "For recommendations, put downside and uncertainty before upside.",
-            "Return a single LLMOutput JSON object.",
-            "Baseline context:\n" + _json_for_prompt(_baseline_summary(state)),
-            "Retrieval disclosure:\n"
-            + _json_for_prompt(state.get("retrieval_disclosure", {})),
-            "Data quality:\n" + _json_for_prompt(state.get("data_quality", {})),
-            "Evidence pack:\n" + _json_for_prompt(state.get("evidence_pack", [])),
-        ]
+    prompt = render_prompt(
+        "reactive/final_reasoning.yaml",
+        baseline_summary=_json_for_prompt(_baseline_summary(state)),
+        retrieval_disclosure=_json_for_prompt(state.get("retrieval_disclosure", {})),
+        data_quality=_json_for_prompt(state.get("data_quality", {})),
+        evidence_pack=_json_for_prompt(state.get("evidence_pack", [])),
     )
     structured = _invoke_groq_structured(prompt, LLMOutput, state["user_query"])
     if isinstance(structured, LLMOutput):
@@ -1012,7 +997,7 @@ def _deterministic_llm_output(
             data_quality=data_quality,
             caveats=[
                 "News retrieval depends on indexed documents currently "
-                "available to SCALE."
+                "available to PAISA."
             ],
             evidence_ids=evidence_ids,
         )

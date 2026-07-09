@@ -1,8 +1,8 @@
-# SCALE Finance Agent MVP — Updated Frontend Design Specification
+# PAISA — AI Agent for Finance MVP — Updated Frontend Design Specification
 
 ## 0. Purpose of This Specification
 
-This document defines the frontend design direction for the SCALE Finance Agent MVP.
+This document defines the frontend design direction for the PAISA Finance Agent MVP.
 
 The goal of the MVP frontend is not merely to expose backend functionality. The goal is to **showcase the product vision through a credible, professional, portfolio-first interface**, even where some backend wiring is incomplete or represented by honest demo states.
 
@@ -39,11 +39,11 @@ The MVP must not feel like:
 
 ## 1.1 One-line product identity
 
-SCALE is a portfolio-aware investment intelligence dashboard with an AI reasoning layer.
+PAISA is a portfolio-aware investment intelligence dashboard with an AI reasoning layer.
 
 ## 1.2 User-facing promise
 
-SCALE helps investors understand their portfolio, inspect risks, analyse holdings, ask portfolio-aware questions, and generate structured research reports.
+PAISA helps investors understand their portfolio, inspect risks, analyse holdings, ask portfolio-aware questions, and generate structured research reports.
 
 ## 1.3 MVP promise
 
