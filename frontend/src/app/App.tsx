@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { ChatPanel } from "../features/chat";
+import { downloadCsv, holdingsToCsv } from "../features/portfolio/exportCsv";
 import type {
   ArtifactDetail,
   ArtifactSummary,
@@ -702,6 +703,15 @@ export function App() {
     setSelectedArtifact((await response.json()) as ArtifactDetail);
   }
 
+  function handleExportHoldings() {
+    if (!holdings.length) {
+      setPortfolioError("Import holdings before exporting a CSV.");
+      return;
+    }
+
+    downloadCsv("portfolio-holdings.csv", holdingsToCsv(holdings));
+  }
+
   function sendPrompt(text: string, route: RouteId = activeRoute) {
     setChatPrompt({ id: Date.now(), text });
     if (route === "chat") {
@@ -1035,7 +1045,12 @@ export function App() {
               <RefreshCcw size={16} aria-hidden="true" />
               Refresh holdings
             </button>
-            <button className="quiet-button" type="button">
+            <button
+              className="quiet-button"
+              type="button"
+              disabled={!holdings.length}
+              onClick={handleExportHoldings}
+            >
               <Download size={16} aria-hidden="true" />
               Export CSV
             </button>

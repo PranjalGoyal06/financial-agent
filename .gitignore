@@ -3,6 +3,7 @@
 .uv-cache
 .vscode
 __pycache__/
+.vite/
 *.py[cod]
 .pytest_cache/
 node_modules/

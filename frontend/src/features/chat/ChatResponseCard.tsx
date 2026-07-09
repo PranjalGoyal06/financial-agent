@@ -1,5 +1,6 @@
 import type { ChatResponseCard as ChatResponseCardType } from "../../lib/types";
 import { CitationList } from "./CitationList";
+import { stableListKey } from "./renderKeys";
 
 function badgeTone(value: string): string {
   const normalised = value.toLowerCase();
@@ -33,8 +34,8 @@ function TextList({ title, items }: TextListProps) {
     <section className="chat-response__section">
       <h4>{title}</h4>
       <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, index) => (
+          <li key={stableListKey(title, item, index)}>{item}</li>
         ))}
       </ul>
     </section>
@@ -105,4 +106,3 @@ export function ChatResponseCard({ response }: ChatResponseCardProps) {
     </article>
   );
 }
-
