@@ -1,82 +1,118 @@
 from __future__ import annotations
 
-import re
-from typing import Any, TypedDict
-
-from langgraph.graph import END, StateGraph
+from typing import Any, Union, Literal, Optional
+from pydantic import BaseModel
+from langchain_core.messages import SystemMessage, AnyMessage
+from langchain_core.runnables import RunnableConfig
+from langchain_groq import ChatGroq
+from langgraph.prebuilt import create_react_agent, ToolNode
+from langgraph.store.base import BaseStore
 
 from app.config import settings
+from app.market_data.tools import MARKET_DATA_TOOLS
+
+# ── System prompt ──────────────────────────────────────────────────────────────
+#
+# {portfolio_context} is a runtime placeholder — it is injected into the first
+# SystemMessage at invocation time, not baked into the compiled graph. This means
+# the graph singleton stays valid across users/requests even though each user has
+# a different portfolio.
+
+_SYSTEM_PROMPT_TEMPLATE = """\
+You are PAISA — Portfolio Advisor and Investment Strategist Agent.
+You have access to real-time and historical Indian equity market data tools.
+
+GROUND RULES:
+- Never fabricate prices, returns, or financial figures. Always call the
+  appropriate tool to fetch live data before citing any number.
+- When you cite a price, always include the fetched_at timestamp so the user
+  knows how fresh the data is.
+- For ambiguous company names, resolve the ticker first. Prefer NSE (.NS) over
+  BSE (.BO) unless the user specifies otherwise.
+- Keep answers concise and grounded. Use markdown formatting.
+
+USER'S PORTFOLIO:
+{portfolio_context}
+"""
 
 
-class ChatState(TypedDict, total=False):
-    user_id: str
-    message: str
-    response: str
-    tokens: list[str]
-    model: str
-    used_local_response: bool
+class SequentialToolNode(ToolNode):
+    """A custom ToolNode that executes tool calls sequentially rather than in parallel.
+    This resolves race conditions and off-by-one rendering issues in the streaming UI.
+    """
+    def _func(
+        self,
+        input: Union[
+            list[AnyMessage],
+            dict[str, Any],
+            BaseModel,
+        ],
+        config: RunnableConfig,
+        *,
+        store: Optional[BaseStore],
+    ) -> Any:
+        tool_calls, input_type = self._parse_input(input, store)
+        outputs = []
+        for call in tool_calls:
+            outputs.append(self._run_one(call, input_type, config))
+        return self._combine_tool_outputs(outputs, input_type)
+
+    async def _afunc(
+        self,
+        input: Union[
+            list[AnyMessage],
+            dict[str, Any],
+            BaseModel,
+        ],
+        config: RunnableConfig,
+        *,
+        store: Optional[BaseStore],
+    ) -> Any:
+        tool_calls, input_type = self._parse_input(input, store)
+        outputs = []
+        for call in tool_calls:
+            outputs.append(await self._arun_one(call, input_type, config))
+        return self._combine_tool_outputs(outputs, input_type)
 
 
-def split_tokens(text: str) -> list[str]:
-    return re.findall(r"\S+\s*", text)
+# ── Agent factory ──────────────────────────────────────────────────────────────
 
 
-def local_response(message: str) -> str:
-    cleaned = " ".join(message.strip().split())
-    return (
-        "SCALE Finance Agent is connected. "
-        f"I received your message as {settings.default_user_id}: {cleaned}. "
-        "The chat runtime is online and ready for the next layer of portfolio data."
-    )
+def get_agent(portfolio_context: str) -> Any:
+    """Build and return a compiled LangGraph ReAct agent.
 
+    A new agent is constructed per-request so the system prompt always reflects
+    the current portfolio state. The LLM client and tool list are lightweight to
+    instantiate — no network calls happen until the graph is invoked.
 
-def call_llm(message: str) -> tuple[str, str, bool]:
+    Args:
+        portfolio_context: Markdown table of the user's holdings, or a
+            'No portfolio data available.' fallback string.
+
+    Returns:
+        A compiled LangGraph graph that accepts ``{"messages": [...]}`` as input
+        and supports ``astream_events(version="v2")``.
+    """
     if not settings.groq_api_key or not settings.groq_model:
-        raise ValueError("Groq API key or model is not configured.")
+        raise ValueError(
+            "Groq API key or model is not configured. "
+            "Set GROQ_API_KEY and GROQ_MODEL in your .env file."
+        )
 
-    from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_groq import ChatGroq
-
-    model = ChatGroq(
+    llm = ChatGroq(
         api_key=settings.groq_api_key,
         model=settings.groq_model,
-        temperature=0.2,
-    )
-    response = model.invoke(
-        [
-            SystemMessage(
-                content=(
-                    "You are SCALE Finance Agent. Answer plainly and keep the "
-                    "response focused on the user's message. Do not use tools, "
-                    "market data, portfolio data, or recommendations yet."
-                )
-            ),
-            HumanMessage(content=message),
-        ]
+        temperature=0.1,
+        streaming=True,
     )
 
-    content = (
-        response.content if isinstance(response.content, str) else str(response.content)
+    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+        portfolio_context=portfolio_context
     )
-    return content, settings.groq_model, False
 
-
-def raw_llm_node(state: ChatState) -> dict[str, Any]:
-    response, model_name, used_local_response = call_llm(state["message"])
-    return {
-        "response": response,
-        "tokens": split_tokens(response),
-        "model": model_name,
-        "used_local_response": used_local_response,
-    }
-
-
-def build_chat_graph():
-    graph = StateGraph(ChatState)
-    graph.add_node("raw_llm_call", raw_llm_node)
-    graph.set_entry_point("raw_llm_call")
-    graph.add_edge("raw_llm_call", END)
-    return graph.compile()
-
-
-chat_graph = build_chat_graph()
+    return create_react_agent(
+        llm,
+        tools=SequentialToolNode(MARKET_DATA_TOOLS),
+        prompt=SystemMessage(content=system_prompt),
+        version="v1",
+    )

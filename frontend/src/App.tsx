@@ -1,30 +1,96 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { marked } from "marked";
+
+// ── Markdown ───────────────────────────────────────────────────────────────────
 
 function Markdown({ content }: { content: string }) {
   const rawHtml = marked.parse(content, { async: false }) as string;
-  return <div className="message-content" dangerouslySetInnerHTML={{ __html: rawHtml }} />;
+  return (
+    <div className="message-content" dangerouslySetInnerHTML={{ __html: rawHtml }} />
+  );
 }
+
+// ── Tool call card ─────────────────────────────────────────────────────────────
+
+type ToolCallBlock = {
+  type: "tool_call";
+  name: string;
+  summary: string;
+  input: Record<string, unknown>;
+  output?: string;
+  status: "running" | "done" | "failed";
+};
+
+function ToolCallCard({ block }: { block: ToolCallBlock }) {
+  const label = block.name.replace(/_tool$/, "").replace(/_/g, " ");
+  const isRunning = block.status === "running";
+  const isFailed = block.status === "failed";
+  const icon = isRunning ? "⟳" : isFailed ? "⚠" : "✓";
+
+  return (
+    <details
+      className={`tool-card${isRunning ? " tool-card--running" : ""}${
+        isFailed ? " tool-card--failed" : ""
+      }`}
+    >
+      <summary className="tool-card__summary">
+        <span className="tool-card__icon">{icon}</span>
+        <span className="tool-card__label">{label}</span>
+        {block.summary && !isRunning && (
+          <span className="tool-card__result">{block.summary}</span>
+        )}
+      </summary>
+      <div className="tool-card__body">
+        <div className="tool-card__section">
+          <p className="tool-card__section-label">Request</p>
+          <pre className="tool-card__code">{JSON.stringify(block.input, null, 2)}</pre>
+        </div>
+        {block.output !== undefined && (
+          <div className="tool-card__section">
+            <p className="tool-card__section-label">Response</p>
+            <pre className="tool-card__code">{formatToolOutput(block.output)}</pre>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function formatToolOutput(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+}
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type TextBlock = { type: "text"; text: string };
+type ContentBlock = TextBlock | ToolCallBlock;
 
 type Message = {
   id: number;
   role: "user" | "assistant" | "system" | "error";
-  content: string;
+  // user/system/error use plain content string; assistant uses blocks
+  content?: string;
+  blocks?: ContentBlock[];
 };
 
 type StreamEvent =
   | { event: "run_start"; data: { stage: string; user_id: string; timestamp: string } }
   | { event: "token"; data: { token: string } }
   | { event: "error"; data: { message: string } }
-  | {
-      event: "final";
-      data: {
-        message: string;
-        model: string;
-        used_local_response: boolean;
-        timestamp: string;
-      };
-    };
+  | { event: "tool_call"; data: { name: string; status: string; summary: string; input: Record<string, unknown> } }
+  | { event: "tool_result"; data: { name: string; status: "done" | "failed"; summary: string; output?: string } }
+  | { event: "final"; data: { model: string; timestamp: string } };
 
 type Holding = {
   id: string;
@@ -47,16 +113,10 @@ type PortfolioResponse = {
   updated_at: string;
 };
 
-type PortfolioUploadError = {
-  row: number;
-  field: string;
-  message: string;
-};
+type PortfolioUploadError = { row: number; field: string; message: string };
+type PortfolioUploadFailure = { message: string; errors: PortfolioUploadError[] };
 
-type PortfolioUploadFailure = {
-  message: string;
-  errors: PortfolioUploadError[];
-};
+// ── SSE parser ─────────────────────────────────────────────────────────────────
 
 function parseSseEvent(rawEvent: string): StreamEvent | null {
   const eventName = rawEvent
@@ -70,10 +130,7 @@ function parseSseEvent(rawEvent: string): StreamEvent | null {
     .map((line) => line.slice(5).trimStart())
     .join("\n");
 
-  if (!eventName || !data) {
-    return null;
-  }
-
+  if (!eventName || !data) return null;
   try {
     return { event: eventName, data: JSON.parse(data) } as StreamEvent;
   } catch {
@@ -81,17 +138,80 @@ function parseSseEvent(rawEvent: string): StreamEvent | null {
   }
 }
 
+// ── Block reducer helpers ──────────────────────────────────────────────────────
+
+function appendToken(blocks: ContentBlock[], token: string): ContentBlock[] {
+  const last = blocks[blocks.length - 1];
+  if (last?.type === "text") {
+    return [...blocks.slice(0, -1), { type: "text", text: last.text + token }];
+  }
+  return [...blocks, { type: "text", text: token }];
+}
+
+function pushToolCall(
+  blocks: ContentBlock[],
+  name: string,
+  input: Record<string, unknown>
+): ContentBlock[] {
+  return [
+    ...blocks,
+    { type: "tool_call", name, summary: "", input, status: "running" },
+  ];
+}
+
+function resolveToolResult(
+  blocks: ContentBlock[],
+  name: string,
+  summary: string,
+  output: string,
+  status: "done" | "failed"
+): ContentBlock[] {
+  const idx = [...blocks].reverse().findIndex(
+    (b) => b.type === "tool_call" && b.name === name && b.status === "running"
+  );
+  if (idx === -1) return blocks;
+  const realIdx = blocks.length - 1 - idx;
+  return blocks.map((b, i) =>
+    i === realIdx
+      ? ({ ...b, status, summary, output } as ToolCallBlock)
+      : b
+  );
+}
+
+// ── Message renderer ───────────────────────────────────────────────────────────
+
+function AssistantBlocks({
+  blocks,
+  isStreaming,
+}: {
+  blocks: ContentBlock[];
+  isStreaming?: boolean;
+}) {
+  return (
+    <div className={`assistant-turn${isStreaming ? " assistant-turn--streaming" : ""}`}>
+      {blocks.map((block, i) =>
+        block.type === "text" ? (
+          <Markdown key={i} content={block.text} />
+        ) : (
+          <ToolCallCard key={i} block={block} />
+        )
+      )}
+    </div>
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────────────────────
+
 export function App() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       role: "system",
-      content:
-        "SCALE Finance Agent is ready. Type a message to start a streamed chat.",
+      content: "PAISA is ready. Ask about your portfolio or any Indian equity.",
     },
   ]);
   const [input, setInput] = useState("");
-  const [draft, setDraft] = useState("");
+  const [draftBlocks, setDraftBlocks] = useState<ContentBlock[]>([]);
   const [status, setStatus] = useState("Checking backend...");
   const [isStreaming, setIsStreaming] = useState(false);
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
@@ -101,20 +221,22 @@ export function App() {
   const [isUploading, setIsUploading] = useState(false);
   const nextId = useRef(2);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Health check ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
     fetch("/health")
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Backend returned ${response.status}`);
-        }
-        return response.json();
+      .then((r) => {
+        if (!r.ok) throw new Error(`Backend returned ${r.status}`);
+        return r.json();
       })
-      .then((payload: { runtime: string; user_id: string }) => {
-        setStatus(`Connected as ${payload.user_id}`);
+      .then((p: { runtime: string; user_id: string }) => {
+        setStatus(`Connected · ${p.user_id}`);
       })
-      .catch((error: unknown) => {
-        setStatus(error instanceof Error ? error.message : "Backend unavailable");
+      .catch((e: unknown) => {
+        setStatus(e instanceof Error ? e.message : "Backend unavailable");
       });
   }, []);
 
@@ -122,21 +244,24 @@ export function App() {
     void loadPortfolio();
   }, []);
 
+  // Auto-scroll on new content
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, draftBlocks]);
+
+  // ── Portfolio ─────────────────────────────────────────────────────────────────
+
   async function loadPortfolio() {
     try {
-      const response = await fetch("/portfolio");
-      if (!response.ok) {
-        throw new Error(`Portfolio returned ${response.status}`);
-      }
-      const payload = (await response.json()) as PortfolioResponse;
-      setPortfolio(payload);
+      const r = await fetch("/portfolio");
+      if (!r.ok) throw new Error(`Portfolio returned ${r.status}`);
+      const p = (await r.json()) as PortfolioResponse;
+      setPortfolio(p);
       setPortfolioStatus(
-        payload.total_holdings
-          ? `${payload.total_holdings} holdings loaded`
-          : "No holdings imported"
+        p.total_holdings ? `${p.total_holdings} holdings` : "No holdings"
       );
-    } catch (error: unknown) {
-      setPortfolioStatus(error instanceof Error ? error.message : "Portfolio unavailable");
+    } catch (e: unknown) {
+      setPortfolioStatus(e instanceof Error ? e.message : "Unavailable");
     }
   }
 
@@ -147,67 +272,75 @@ export function App() {
 
   async function uploadPortfolio(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedFile || isUploading) {
-      return;
-    }
+    if (!selectedFile || isUploading) return;
 
     setIsUploading(true);
     setUploadErrors([]);
-    setPortfolioStatus("Uploading portfolio...");
+    setPortfolioStatus("Uploading…");
 
     const formData = new FormData();
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch("/portfolio/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const payload = await response.json();
+      const r = await fetch("/portfolio/upload", { method: "POST", body: formData });
+      const payload = await r.json();
 
-      if (!response.ok) {
+      if (!r.ok) {
         const failure = payload as PortfolioUploadFailure;
         setUploadErrors(failure.errors ?? []);
-        throw new Error(failure.message || `Upload failed (${response.status})`);
+        throw new Error(failure.message || `Upload failed (${r.status})`);
       }
 
-      const importedCount = Number(payload.imported_count ?? 0);
-      setPortfolioStatus(`${importedCount} holdings imported`);
+      setPortfolioStatus(`${Number(payload.imported_count ?? 0)} holdings imported`);
       setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
       await loadPortfolio();
-    } catch (error: unknown) {
-      setPortfolioStatus(error instanceof Error ? error.message : "Upload failed");
+    } catch (e: unknown) {
+      setPortfolioStatus(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setIsUploading(false);
     }
   }
 
+  // ── Composer auto-grow ────────────────────────────────────────────────────────
+
+  function handleInputChange(e: ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  }
+
+  // ── Chat stream ───────────────────────────────────────────────────────────────
+
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = input.trim();
-    if (!message || isStreaming) {
-      return;
-    }
+    if (!message || isStreaming) return;
 
-    setMessages((current) => [
-      ...current,
+    setMessages((cur) => [
+      ...cur,
       { id: nextId.current++, role: "user", content: message },
     ]);
     setInput("");
-    setDraft("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+    setDraftBlocks([]);
     setIsStreaming(true);
-    setStatus("Streaming response...");
+    setStatus("Thinking…");
 
     try {
       const response = await fetch("/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ message }),
       });
 
@@ -218,7 +351,7 @@ export function App() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let assistantText = "";
+      let blocks: ContentBlock[] = [];
       let hasError = false;
 
       while (true) {
@@ -229,78 +362,86 @@ export function App() {
 
         for (const rawEvent of rawEvents) {
           const parsed = parseSseEvent(rawEvent);
-          if (!parsed) {
-            continue;
-          }
+          if (!parsed) continue;
 
           if (parsed.event === "run_start") {
-            setStatus("Preparing response...");
+            setStatus("Thinking…");
           }
 
           if (parsed.event === "token") {
-            assistantText += parsed.data.token;
-            setDraft(assistantText);
+            blocks = appendToken(blocks, parsed.data.token);
+            setDraftBlocks([...blocks]);
+          }
+
+          if (parsed.event === "tool_call") {
+            blocks = pushToolCall(blocks, parsed.data.name, parsed.data.input ?? {});
+            setDraftBlocks([...blocks]);
+            setStatus(`Calling ${parsed.data.name.replace(/_tool$/, "")}…`);
+          }
+
+          if (parsed.event === "tool_result") {
+            const outputStr = parsed.data.output ?? parsed.data.summary ?? "";
+            blocks = resolveToolResult(
+              blocks,
+              parsed.data.name,
+              parsed.data.summary,
+              outputStr,
+              parsed.data.status
+            );
+            setDraftBlocks([...blocks]);
           }
 
           if (parsed.event === "error") {
-            setMessages((current) => [
-              ...current,
+            setMessages((cur) => [
+              ...cur,
               { id: nextId.current++, role: "error", content: parsed.data.message },
             ]);
-            setDraft("");
+            setDraftBlocks([]);
             setStatus("Stream failed");
             hasError = true;
             break;
           }
 
           if (parsed.event === "final") {
-            setStatus(
-              parsed.data.used_local_response
-                ? `Completed with ${parsed.data.model}`
-                : `Completed with ${parsed.data.model}`
-            );
+            setStatus(`Completed · ${parsed.data.model}`);
           }
         }
 
-        if (done || hasError) {
-          break;
-        }
+        if (done || hasError) break;
       }
 
-      if (assistantText && !hasError) {
-        setMessages((current) => [
-          ...current,
-          { id: nextId.current++, role: "assistant", content: assistantText },
+      if (blocks.length > 0 && !hasError) {
+        setMessages((cur) => [
+          ...cur,
+          { id: nextId.current++, role: "assistant", blocks },
         ]);
-        setDraft("");
+        setDraftBlocks([]);
       }
-    } catch (error: unknown) {
-      setStatus(error instanceof Error ? error.message : "Chat stream failed");
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextId.current++,
-          role: "error",
-          content: error instanceof Error ? error.message : "Chat stream failed",
-        },
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Chat stream failed";
+      setStatus(msg);
+      setMessages((cur) => [
+        ...cur,
+        { id: nextId.current++, role: "error", content: msg },
       ]);
     } finally {
       setIsStreaming(false);
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────────
+
   return (
     <main className="app-shell">
-      <section className="portfolio-panel" aria-label="Portfolio">
+
+      {/* ── Portfolio sidebar ── */}
+      <aside className="portfolio-panel" aria-label="Portfolio">
         <header className="portfolio-header">
-          <div>
-            <p className="eyebrow">Data foundation</p>
-            <h2>Portfolio</h2>
+          <div className="portfolio-header__text">
+            <p className="eyebrow">Portfolio</p>
+            <span className="portfolio-stat">{portfolio?.total_holdings ?? 0} holdings</span>
           </div>
-          <div className="holding-count">
-            <span>Holdings</span>
-            <strong>{portfolio?.total_holdings ?? 0}</strong>
-          </div>
+          <span className={`portfolio-status-dot${portfolio?.total_holdings ? " portfolio-status-dot--ok" : ""}`} />
         </header>
 
         <form className="upload-row" onSubmit={uploadPortfolio}>
@@ -312,24 +453,24 @@ export function App() {
             type="file"
           />
           <button disabled={!selectedFile || isUploading} type="submit">
-            {isUploading ? "Uploading" : "Upload CSV"}
+            {isUploading ? "…" : "Upload"}
           </button>
         </form>
 
-        <p className="portfolio-status">{portfolioStatus}</p>
+        <p className="portfolio-status-text">{portfolioStatus}</p>
 
-        {uploadErrors.length ? (
+        {uploadErrors.length > 0 && (
           <div className="upload-errors" role="alert">
-            <h3>Rejected rows</h3>
+            <p className="upload-errors__title">Rejected rows</p>
             <ul>
-              {uploadErrors.map((error) => (
-                <li key={`${error.row}-${error.field}-${error.message}`}>
-                  Row {error.row}, {error.field}: {error.message}
+              {uploadErrors.map((err) => (
+                <li key={`${err.row}-${err.field}`}>
+                  Row {err.row} · {err.field}: {err.message}
                 </li>
               ))}
             </ul>
           </div>
-        ) : null}
+        )}
 
         <div className="holdings-table-wrap">
           {portfolio?.holdings.length ? (
@@ -337,69 +478,117 @@ export function App() {
               <thead>
                 <tr>
                   <th>Ticker</th>
-                  <th>Exchange</th>
-                  <th>Asset</th>
                   <th>Qty</th>
-                  <th>Avg cost</th>
-                  <th>Currency</th>
-                  <th>Purchase date</th>
+                  <th>Avg ₹</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {portfolio.holdings.map((holding) => (
-                  <tr key={holding.id}>
-                    <td>{holding.canonical_ticker}</td>
-                    <td>{holding.exchange}</td>
-                    <td>{holding.asset_class}</td>
-                    <td>{formatNumber(holding.quantity)}</td>
-                    <td>{formatNumber(holding.avg_cost)}</td>
-                    <td>{holding.currency}</td>
-                    <td>{holding.purchase_date ?? "-"}</td>
+                {portfolio.holdings.map((h) => (
+                  <tr key={h.id}>
+                    <td>
+                      <span className="ticker-badge">{h.canonical_ticker}</span>
+                    </td>
+                    <td>{formatNumber(h.quantity)}</td>
+                    <td>{formatNumber(h.avg_cost)}</td>
+                    <td>{h.purchase_date ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
-            <div className="empty-holdings">No holdings</div>
+            <div className="empty-holdings">No holdings · upload a CSV</div>
           )}
         </div>
-      </section>
+      </aside>
 
+      {/* ── Chat workbench ── */}
       <section className="chat-workbench" aria-label="Chat">
         <header className="chat-header">
           <div>
             <p className="eyebrow">Investment intelligence</p>
-            <h1>SCALE Finance Agent</h1>
+            <h1>PAISA</h1>
           </div>
           <span className="status-pill">{status}</span>
         </header>
 
         <div className="message-list" aria-live="polite">
-          {messages.map((message) => (
-            <article className={`message message--${message.role}`} key={message.id}>
-              <span>{message.role}</span>
-              <Markdown content={message.content} />
-            </article>
-          ))}
-          {draft ? (
-            <article className="message message--assistant message--streaming">
-              <span>assistant</span>
-              <Markdown content={draft} />
-            </article>
-          ) : null}
+
+          {messages.map((msg) => {
+            if (msg.role === "user") {
+              return (
+                <div key={msg.id} className="turn turn--user">
+                  <div className="bubble bubble--user">
+                    <Markdown content={msg.content ?? ""} />
+                  </div>
+                </div>
+              );
+            }
+            if (msg.role === "system") {
+              return (
+                <div key={msg.id} className="turn turn--system">
+                  <p className="system-notice">{msg.content}</p>
+                </div>
+              );
+            }
+            if (msg.role === "error") {
+              return (
+                <div key={msg.id} className="turn turn--assistant">
+                  <div className="error-bubble">
+                    <span className="error-bubble__icon">⚠</span>
+                    {msg.content}
+                  </div>
+                </div>
+              );
+            }
+            // assistant
+            return (
+              <div key={msg.id} className="turn turn--assistant">
+                <AssistantBlocks blocks={msg.blocks ?? []} />
+              </div>
+            );
+          })}
+
+          {/* Streaming draft */}
+          {draftBlocks.length > 0 && (
+            <div className="turn turn--assistant">
+              <AssistantBlocks blocks={draftBlocks} isStreaming />
+            </div>
+          )}
+
+          <div ref={bottomRef} />
         </div>
 
+        {/* ── Composer ── */}
         <form className="composer" onSubmit={sendMessage}>
-          <input
-            aria-label="Message"
-            value={input}
-            disabled={isStreaming}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask the agent a question..."
-          />
-          <button disabled={isStreaming || !input.trim()} type="submit">
-            {isStreaming ? "Streaming" : "Send"}
-          </button>
+          <div className="composer__inner">
+            <textarea
+              ref={textareaRef}
+              className="composer__input"
+              aria-label="Message"
+              value={input}
+              disabled={isStreaming}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about your portfolio… (Enter to send, Shift+Enter for newline)"
+              rows={1}
+            />
+            <button
+              className="composer__send"
+              disabled={isStreaming || !input.trim()}
+              type="submit"
+              aria-label="Send"
+            >
+              {isStreaming ? (
+                <span className="composer__spinner">⟳</span>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 8L14 8M8 2L14 8L8 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </button>
+          </div>
+          <p className="composer__hint">Shift+Enter for newline</p>
         </form>
       </section>
     </main>
@@ -407,7 +596,5 @@ export function App() {
 }
 
 function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    maximumFractionDigits: 2,
-  }).format(value);
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value);
 }
