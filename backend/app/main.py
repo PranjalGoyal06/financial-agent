@@ -178,18 +178,10 @@ async def stream_chat_events(
                 tool_output = event["data"].get("output", "")
                 
                 raw_content = getattr(tool_output, "content", str(tool_output))
-                
-                is_error = False
-                if getattr(tool_output, "status", None) == "error":
-                    is_error = True
-                elif isinstance(raw_content, str):
-                    try:
-                        parsed_content = json.loads(raw_content)
-                        if isinstance(parsed_content, dict) and "error" in parsed_content:
-                            is_error = True
-                    except json.JSONDecodeError:
-                        if "error" in raw_content.lower() or "failed" in raw_content.lower():
-                            is_error = True
+                # ToolNode sets status="error" when ToolException is raised and
+                # handle_tool_error=True. That's the authoritative signal — no
+                # string heuristics needed.
+                is_error = getattr(tool_output, "status", None) == "error"
 
                 yield sse(
                     "tool_result",

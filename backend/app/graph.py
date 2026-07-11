@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Union, Literal, Optional
-from pydantic import BaseModel
-from langchain_core.messages import SystemMessage, AnyMessage
+from typing import Any, Optional, Union
+
+from langchain_core.messages import AnyMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_groq import ChatGroq
-from langgraph.prebuilt import create_react_agent, ToolNode
+from langgraph.prebuilt import ToolNode, create_react_agent
 from langgraph.store.base import BaseStore
+from pydantic import BaseModel
 
 from app.config import settings
 from app.market_data.tools import MARKET_DATA_TOOLS

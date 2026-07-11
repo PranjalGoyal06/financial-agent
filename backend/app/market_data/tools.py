@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from langchain_core.tools import tool, ToolException
+from langchain_core.tools import ToolException, tool
 
 from app.market_data.provider import (
     ProviderError,
