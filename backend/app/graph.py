@@ -4,10 +4,11 @@ from typing import Any, Optional, Union
 
 from langchain_core.messages import AnyMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_groq import ChatGroq
 from langgraph.prebuilt import ToolNode, create_react_agent
 from langgraph.store.base import BaseStore
 from pydantic import BaseModel
+
+from app.llm.provider import get_chat_model
 
 from app.config import settings
 from app.market_data.tools import MARKET_DATA_TOOLS
@@ -94,18 +95,7 @@ def get_agent(portfolio_context: str) -> Any:
         A compiled LangGraph graph that accepts ``{"messages": [...]}`` as input
         and supports ``astream_events(version="v2")``.
     """
-    if not settings.groq_api_key or not settings.groq_model:
-        raise ValueError(
-            "Groq API key or model is not configured. "
-            "Set GROQ_API_KEY and GROQ_MODEL in your .env file."
-        )
-
-    llm = ChatGroq(
-        api_key=settings.groq_api_key,
-        model=settings.groq_model,
-        temperature=0.1,
-        streaming=True,
-    )
+    llm = get_chat_model(temperature=0.1, streaming=True)
 
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
         portfolio_context=portfolio_context
