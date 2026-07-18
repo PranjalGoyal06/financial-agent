@@ -80,7 +80,11 @@ class SequentialToolNode(ToolNode):
 # ── Agent factory ──────────────────────────────────────────────────────────────
 
 
-def get_agent(portfolio_context: str) -> Any:
+def get_agent(
+    portfolio_context: str,
+    provider: str | None = None,
+    model: str | None = None,
+) -> Any:
     """Build and return a compiled LangGraph ReAct agent.
 
     A new agent is constructed per-request so the system prompt always reflects
@@ -90,12 +94,16 @@ def get_agent(portfolio_context: str) -> Any:
     Args:
         portfolio_context: Markdown table of the user's holdings, or a
             'No portfolio data available.' fallback string.
+        provider: LLM provider override ('groq' or 'ollama'). Defaults to the
+            server-level ``settings.llm_provider``.
+        model: Model name override. Defaults to the provider's default model
+            from settings.
 
     Returns:
         A compiled LangGraph graph that accepts ``{"messages": [...]}`` as input
         and supports ``astream_events(version="v2")``.
     """
-    llm = get_chat_model(temperature=0.1, streaming=True)
+    llm = get_chat_model(temperature=0.1, streaming=True, provider=provider, model=model)
 
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
         portfolio_context=portfolio_context

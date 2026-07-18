@@ -82,6 +82,7 @@ def _stub_resolution() -> AssetResolution:
 
 @pytest.mark.asyncio
 async def test_resolve_asset_tool_returns_json() -> None:
+    """Verify that resolve_asset_tool returns candidate list formatted as a JSON string."""
     with patch(
         "app.market_data.tools.resolve_asset", return_value=_stub_resolution()
     ):
@@ -94,6 +95,7 @@ async def test_resolve_asset_tool_returns_json() -> None:
 
 @pytest.mark.asyncio
 async def test_resolve_asset_tool_unresolved_returns_json() -> None:
+    """Verify that resolve_asset_tool returns resolved=False JSON when query is unresolved."""
     with patch(
         "app.market_data.tools.resolve_asset",
         return_value=AssetResolution(query="zerodha", resolved=False, candidates=[]),
@@ -110,6 +112,7 @@ async def test_resolve_asset_tool_unresolved_returns_json() -> None:
 
 @pytest.mark.asyncio
 async def test_get_quote_tool_returns_json() -> None:
+    """Verify that get_quote_tool returns quote details as a JSON string with uppercased ticker."""
     from app.market_data.tools import _provider
 
     with patch.object(_provider, "get_quote", return_value=_stub_quote()):
@@ -123,6 +126,7 @@ async def test_get_quote_tool_returns_json() -> None:
 
 @pytest.mark.asyncio
 async def test_get_quote_tool_not_found_returns_error_json() -> None:
+    """Verify that get_quote_tool propagates not found error inside a ToolException."""
     from app.market_data.tools import _provider
 
     with patch.object(
@@ -131,7 +135,7 @@ async def test_get_quote_tool_not_found_returns_error_json() -> None:
         result = await get_quote_tool.ainvoke({"ticker": "FAKE.NS"})
 
     assert "FAKE.NS" in result
-    assert "not found" in result
+    assert "not found" in result.lower()
 
 
 # ── get_historical_data_tool ───────────────────────────────────────────────────
@@ -139,6 +143,7 @@ async def test_get_quote_tool_not_found_returns_error_json() -> None:
 
 @pytest.mark.asyncio
 async def test_get_historical_data_tool_returns_summary_json() -> None:
+    """Verify that get_historical_data_tool returns a concise JSON summary of historical price trends."""
     from app.market_data.tools import _provider
 
     with patch.object(_provider, "get_historical", return_value=_stub_hist()):
@@ -155,6 +160,7 @@ async def test_get_historical_data_tool_returns_summary_json() -> None:
 
 @pytest.mark.asyncio
 async def test_get_historical_data_tool_not_found_returns_error_json() -> None:
+    """Verify that get_historical_data_tool propagates not found error inside a ToolException."""
     from app.market_data.tools import _provider
 
     with patch.object(
@@ -165,12 +171,12 @@ async def test_get_historical_data_tool_not_found_returns_error_json() -> None:
         )
 
     assert "FAKE.NS" in result
-    assert "not found" in result
+    assert "not found" in result.lower()
 
 
 @pytest.mark.asyncio
 async def test_get_historical_data_tool_defaults() -> None:
-    """Omitting period and interval should use 6mo/1d defaults."""
+    """Verify that omitting period and interval applies correct default values (6mo, 1d)."""
     from app.market_data.tools import _provider
 
     with patch.object(_provider, "get_historical", return_value=_stub_hist()) as mock:

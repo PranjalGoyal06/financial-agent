@@ -4,7 +4,9 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.graph import get_agent
 from app.main import _build_portfolio_context, _tool_output_summary
+
 
 # ── _tool_output_summary ───────────────────────────────────────────────────────
 
@@ -15,7 +17,7 @@ def test_tool_output_summary_quote_formats_price() -> None:
     )
     result = _tool_output_summary("get_quote_tool", output)
     assert "INFY.NS" in result
-    assert "1,523.50" in result or "1523" in result
+    assert "1,523.50" in result
     assert "+0.84%" in result
 
 
@@ -138,3 +140,24 @@ async def test_build_portfolio_context_on_db_error_returns_fallback() -> None:
         result = await _build_portfolio_context(mock_session)
 
     assert "No portfolio data" in result
+
+
+# ── Agent Graph Compilation ────────────────────────────────────────────────────
+
+
+def test_agent_graph_compiles_and_validates_structure() -> None:
+    """Verify that get_agent successfully compiles the state graph and binds tools."""
+    with patch("app.graph.get_chat_model") as mock_get_llm:
+        mock_llm = MagicMock()
+        mock_get_llm.return_value = mock_llm
+
+        agent = get_agent("No portfolio data available", provider="groq", model="llama3")
+
+        assert hasattr(agent, "stream")
+        assert hasattr(agent, "astream_events")
+        mock_get_llm.assert_called_once_with(
+            temperature=0.1,
+            streaming=True,
+            provider="groq",
+            model="llama3",
+        )

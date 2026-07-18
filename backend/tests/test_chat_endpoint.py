@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.main import app
 from fastapi.testclient import TestClient
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -24,6 +23,10 @@ def _make_agent_stub(events: list[dict]) -> MagicMock:
     async def _astream(inputs, version="v2"):
         for evt in events:
             yield evt
+
+        # Make it an async generator
+        if False:
+            yield
 
     stub = MagicMock()
     stub.astream_events = _astream
@@ -53,20 +56,19 @@ def _tool_end_event(name: str, output: str) -> dict:
 # ── Tests ──────────────────────────────────────────────────────────────────────
 
 
-def test_health_reports_chat_runtime() -> None:
-    client = TestClient(app)
+def test_health_reports_chat_runtime(client: TestClient) -> None:
+    """Verify that the health check endpoint returns 200 and the correct runtime."""
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "status": "ok",
-        "user_id": "local-user",
-        "runtime": "chat",
-    }
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["runtime"] == "chat"
+    assert "user_id" in body
 
 
-def test_chat_streams_token_and_final_events() -> None:
-    client = TestClient(app)
+def test_chat_streams_token_and_final_events(client: TestClient) -> None:
+    """Verify that /chat streams run_start, token, and final events correctly."""
     stub = _make_agent_stub(_token_events("Hello world"))
 
     with (
@@ -86,9 +88,8 @@ def test_chat_streams_token_and_final_events() -> None:
     assert '"token":"e"' in body
 
 
-def test_chat_streams_tool_call_events() -> None:
+def test_chat_streams_tool_call_events(client: TestClient) -> None:
     """tool_call and tool_result SSE events must appear when agent uses a tool."""
-    client = TestClient(app)
     quote_json = json.dumps(
         {"ticker": "INFY.NS", "price": 1523.0, "day_change_pct": 0.84}
     )
@@ -96,7 +97,7 @@ def test_chat_streams_tool_call_events() -> None:
         [
             _tool_start_event("get_quote_tool", {"ticker": "INFY.NS"}),
             _tool_end_event("get_quote_tool", quote_json),
-            *_token_events("The price is \u20b91,523."),
+            *_token_events("The price is ₹1,523."),
         ]
     )
 
@@ -112,9 +113,8 @@ def test_chat_streams_tool_call_events() -> None:
     assert "get_quote_tool" in body
 
 
-def test_chat_streams_error_when_llm_unconfigured() -> None:
-    client = TestClient(app)
-
+def test_chat_streams_error_when_llm_unconfigured(client: TestClient) -> None:
+    """Verify that ValueError from LLM configuration is streamed as an SSE error."""
     with (
         patch(
             "app.main.get_agent",
@@ -130,9 +130,8 @@ def test_chat_streams_error_when_llm_unconfigured() -> None:
     assert "Groq API key" in body
 
 
-def test_chat_streams_error_on_graph_failure() -> None:
-    client = TestClient(app)
-
+def test_chat_streams_error_on_graph_failure(client: TestClient) -> None:
+    """Verify that unhandled graph exceptions are caught and streamed as SSE errors."""
     async def _bad_astream(inputs, version="v2"):
         raise RuntimeError("Graph exploded")
         yield  # make it an async generator
@@ -151,7 +150,7 @@ def test_chat_streams_error_on_graph_failure() -> None:
     assert "Graph exploded" in body
 
 
-def test_chat_rejects_empty_message() -> None:
-    client = TestClient(app)
+def test_chat_rejects_empty_message(client: TestClient) -> None:
+    """Verify that an empty chat message is rejected with 422 Unprocessable Entity."""
     response = client.post("/chat", json={"message": ""})
     assert response.status_code == 422

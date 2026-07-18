@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Generator
 from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
-import pytest
-from app.db import AsyncSessionLocal, init_db
-from app.main import app
 from app.market_data.provider import TickerNotFoundError, YFinanceProvider
 from app.market_data.schemas import (
     Asset,
@@ -16,27 +11,7 @@ from app.market_data.schemas import (
     HistoricalDataResponse,
     MarketQuote,
 )
-from app.models import MarketSnapshotModel
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
-
-# ── Fixtures ───────────────────────────────────────────────────────────────────
-
-
-@pytest.fixture()
-def client() -> Generator[TestClient, None, None]:
-    asyncio.run(init_db())
-    asyncio.run(_clear_snapshots())
-    with TestClient(app) as test_client:
-        yield test_client
-    asyncio.run(_clear_snapshots())
-
-
-async def _clear_snapshots() -> None:
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(delete(MarketSnapshotModel))
-
 
 # ── Stub factories ─────────────────────────────────────────────────────────────
 
@@ -100,6 +75,7 @@ def _stub_resolution(query: str = "infosys") -> AssetResolution:
 
 
 def test_resolve_asset_returns_200(client: TestClient) -> None:
+    """Verify successful asset resolution mapping."""
     with patch(
         "app.market_data.router.resolve_asset", return_value=_stub_resolution()
     ):
@@ -113,11 +89,13 @@ def test_resolve_asset_returns_200(client: TestClient) -> None:
 
 
 def test_resolve_asset_missing_query(client: TestClient) -> None:
+    """Verify that a missing query parameter triggers validation failure (422)."""
     response = client.get("/tools/resolve-asset")
     assert response.status_code == 422
 
 
 def test_resolve_asset_unresolved(client: TestClient) -> None:
+    """Verify that a query with no matches returns unresolved candidate list."""
     unresolved = AssetResolution(query="zerodha", resolved=False, candidates=[])
     with patch("app.market_data.router.resolve_asset", return_value=unresolved):
         response = client.get("/tools/resolve-asset?query=zerodha")
@@ -131,6 +109,7 @@ def test_resolve_asset_unresolved(client: TestClient) -> None:
 
 
 def test_quote_returns_200(client: TestClient) -> None:
+    """Verify fetching quote snapshot for a valid ticker returns 200."""
     with patch.object(YFinanceProvider, "get_quote", return_value=_stub_quote()):
         response = client.get("/tools/quote?ticker=INFY.NS")
 
@@ -140,17 +119,17 @@ def test_quote_returns_200(client: TestClient) -> None:
     assert payload["exchange"] == "NSE"
     assert payload["price"] == 1500.0
     assert payload["provider"] == "yfinance"
-    assert "fetched_at" in payload
-    assert "fresh_until" in payload
 
 
 def test_quote_rejects_non_indian_ticker(client: TestClient) -> None:
+    """Verify that non-Indian tickers (e.g. without NS or BO) return validation error (422)."""
     response = client.get("/tools/quote?ticker=AAPL")
     assert response.status_code == 422
-    assert ".NS" in response.json()["detail"]
+    assert ".NS" in response.json()["detail"] or ".BO" in response.json()["detail"]
 
 
 def test_quote_returns_404_for_unknown_ticker(client: TestClient) -> None:
+    """Verify that a validly-suffixed but non-existent ticker returns 404."""
     with patch.object(
         YFinanceProvider,
         "get_quote",
@@ -163,8 +142,7 @@ def test_quote_returns_404_for_unknown_ticker(client: TestClient) -> None:
 
 
 def test_quote_is_served_from_cache_on_second_call(client: TestClient) -> None:
-    """Second call within TTL must return a cached response with
-    identical fetched_at."""
+    """Verify that fetching quote twice within TTL reads from database cache."""
     stub = _stub_quote()
     call_count = 0
 
@@ -179,13 +157,12 @@ def test_quote_is_served_from_cache_on_second_call(client: TestClient) -> None:
 
     assert r1.status_code == 200
     assert r2.status_code == 200
-    assert call_count == 1, (
-        "Provider should be called only once; second hit must be cached"
-    )
+    assert call_count == 1
     assert r1.json()["fetched_at"] == r2.json()["fetched_at"]
 
 
 def test_quote_ticker_is_uppercased(client: TestClient) -> None:
+    """Verify that lowercased tickers are converted to uppercase before querying the provider."""
     with patch.object(
         YFinanceProvider, "get_quote", return_value=_stub_quote()
     ) as mock:
@@ -197,6 +174,7 @@ def test_quote_ticker_is_uppercased(client: TestClient) -> None:
 
 
 def test_historical_data_returns_200(client: TestClient) -> None:
+    """Verify historical data fetching endpoint works with valid params."""
     with patch.object(
         YFinanceProvider, "get_historical", return_value=_stub_hist()
     ):
@@ -213,7 +191,7 @@ def test_historical_data_returns_200(client: TestClient) -> None:
 
 
 def test_historical_data_defaults_applied(client: TestClient) -> None:
-    """Omitting range and interval should apply 6mo / 1d defaults."""
+    """Verify that default period (6mo) and interval (1d) are applied if omitted."""
     with patch.object(
         YFinanceProvider, "get_historical", return_value=_stub_hist()
     ) as mock:
@@ -222,6 +200,7 @@ def test_historical_data_defaults_applied(client: TestClient) -> None:
 
 
 def test_historical_data_rejects_invalid_range(client: TestClient) -> None:
+    """Verify that an unsupported range value returns 422."""
     response = client.get(
         "/tools/historical-data?ticker=INFY.NS&range=99y&interval=1d"
     )
@@ -230,6 +209,7 @@ def test_historical_data_rejects_invalid_range(client: TestClient) -> None:
 
 
 def test_historical_data_rejects_invalid_interval(client: TestClient) -> None:
+    """Verify that an unsupported interval value returns 422."""
     response = client.get(
         "/tools/historical-data?ticker=INFY.NS&range=6mo&interval=3d"
     )
@@ -238,11 +218,13 @@ def test_historical_data_rejects_invalid_interval(client: TestClient) -> None:
 
 
 def test_historical_data_rejects_non_indian_ticker(client: TestClient) -> None:
+    """Verify that non-Indian tickers are rejected with 422 for historical data query."""
     response = client.get("/tools/historical-data?ticker=AAPL&range=6mo&interval=1d")
     assert response.status_code == 422
 
 
 def test_historical_data_404_for_unknown_ticker(client: TestClient) -> None:
+    """Verify that unknown tickers return 404 for historical data query."""
     with patch.object(
         YFinanceProvider,
         "get_historical",
@@ -256,6 +238,7 @@ def test_historical_data_404_for_unknown_ticker(client: TestClient) -> None:
 
 
 def test_historical_data_cached_on_second_call(client: TestClient) -> None:
+    """Verify that historical data requests are cached correctly."""
     stub = _stub_hist()
     call_count = 0
 

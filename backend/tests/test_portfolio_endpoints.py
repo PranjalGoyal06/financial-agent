@@ -1,35 +1,10 @@
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Generator
-from uuid import uuid4
-
-import pytest
-from app.config import settings
-from app.db import AsyncSessionLocal, init_db
-from app.main import app
-from app.models import UserModel
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
-
-
-@pytest.fixture()
-def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
-    user_id = f"test-user-{uuid4()}"
-    monkeypatch.setattr(settings, "default_user_id", user_id)
-    asyncio.run(init_db())
-    with TestClient(app) as test_client:
-        yield test_client
-    asyncio.run(_delete_test_user(user_id))
-
-
-async def _delete_test_user(user_id: str) -> None:
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(delete(UserModel).where(UserModel.id == user_id))
 
 
 def test_valid_csv_upload_stores_holdings(client: TestClient) -> None:
+    """Verify that a valid CSV upload imports the trade records and stores holdings."""
     csv_content = (
         "symbol,isin,exchange,trade_type,quantity,price,trade_date\n"
         "INFY.NS,INE009A01021,NSE,buy,3,1420.5,2024-01-15\n"
@@ -54,6 +29,7 @@ def test_valid_csv_upload_stores_holdings(client: TestClient) -> None:
 
 
 def test_second_upload_replaces_existing_holdings(client: TestClient) -> None:
+    """Verify that uploading a second portfolio CSV replaces existing holdings entirely (idempotency)."""
     first_csv = "symbol,isin,trade_type,quantity,price\nINFY.NS,INE009A01021,buy,3,1420.5\n"
     second_csv = "symbol,isin,trade_type,quantity,price\nTCS.NS,INE467B01029,buy,2,3900\n"
 
@@ -75,8 +51,10 @@ def test_second_upload_replaces_existing_holdings(client: TestClient) -> None:
 
 
 def test_invalid_upload_leaves_existing_holdings_untouched(client: TestClient) -> None:
+    """Verify that a failed/invalid CSV upload rolls back and leaves existing holdings unchanged."""
     valid_csv = "symbol,isin,trade_type,quantity,price\nINFY.NS,INE009A01021,buy,3,1420.5\n"
     invalid_csv = "symbol,isin,trade_type,quantity,price\nTCS.NS,INE467B01029,buy,-2,3900\n"
+    
     assert (
         client.post(
             "/portfolio/upload",
@@ -104,6 +82,7 @@ def test_invalid_upload_leaves_existing_holdings_untouched(client: TestClient) -
 
 
 def test_upload_rejects_non_csv_filename(client: TestClient) -> None:
+    """Verify that uploading a file with a non-CSV extension returns 400."""
     response = client.post(
         "/portfolio/upload",
         files={
@@ -120,6 +99,7 @@ def test_upload_rejects_non_csv_filename(client: TestClient) -> None:
 
 
 def test_upload_rejects_malformed_utf8(client: TestClient) -> None:
+    """Verify that uploading a non-UTF-8 encoded CSV returns 400."""
     response = client.post(
         "/portfolio/upload",
         files={"file": ("portfolio.csv", b"\xff\xfe", "text/csv")},

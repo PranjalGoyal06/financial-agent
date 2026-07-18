@@ -145,7 +145,11 @@ async def stream_chat_events(
 
     try:
         portfolio_context = await _build_portfolio_context(session)
-        agent = get_agent(portfolio_context)
+        agent = get_agent(
+            portfolio_context,
+            provider=request.llm_provider,
+            model=request.llm_model,
+        )
     except ValueError as exc:
         yield sse("error", {"message": str(exc)})
         return
@@ -195,10 +199,16 @@ async def stream_chat_events(
                     },
                 )
 
+        resolved_provider = (request.llm_provider or settings.llm_provider).lower()
+        if resolved_provider == "groq":
+            active_model = request.llm_model or settings.groq_model or "unknown"
+        else:
+            active_model = request.llm_model or settings.ollama_model or "unknown"
         yield sse(
             "final",
             {
-                "model": settings.groq_model or "unknown",
+                "provider": resolved_provider,
+                "model": active_model,
                 "timestamp": utc_now(),
             },
         )

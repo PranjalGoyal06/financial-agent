@@ -4,67 +4,73 @@ from unittest.mock import patch
 
 from app.market_data.resolver import _map_asset_class, _score, resolve_asset
 
-# ── _score ─────────────────────────────────────────────────────────────────────
+# ── Confidence Scoring Tests ──────────────────────────────────────────────────
 
 
-def test_score_exact_ticker_base():
+def test_score_exact_ticker_base() -> None:
+    """Verify that query matching the ticker base gets maximum confidence (1.0)."""
     assert _score("infy", "INFY.NS", "Infosys Limited") == 1.0
 
 
-def test_score_exact_name():
+def test_score_exact_name() -> None:
+    """Verify that query matching the exact company name gets 0.95 confidence."""
     assert _score("infosys limited", "INFY.NS", "Infosys Limited") == 0.95
 
 
-def test_score_all_tokens_in_name():
+def test_score_all_tokens_in_name() -> None:
+    """Verify that queries where all tokens are present in the name get 0.80 confidence."""
     score = _score("tata motors", "TATAMOTORS.NS", "Tata Motors Limited")
     assert score == 0.80
 
 
-def test_score_partial_overlap():
+def test_score_partial_overlap() -> None:
+    """Verify that query with partial token overlap gets proportional confidence <= 0.60."""
     score = _score("tata steel", "TATAMOTORS.NS", "Tata Motors Limited")
-    # "tata" matches, "steel" does not → 1 of 2 tokens → 0.60 * 0.5 = 0.30
+    # "tata" matches, "steel" does not -> 1 of 2 tokens -> 0.60 * 0.5 = 0.30
     assert score == 0.30
 
 
-def test_score_no_overlap():
+def test_score_no_overlap() -> None:
+    """Verify that query with no overlap gets minimum confidence (0.10)."""
     score = _score("hdfc bank", "TATAMOTORS.NS", "Tata Motors Limited")
     assert score == 0.10
 
 
-def test_score_case_insensitive():
+def test_score_case_insensitive() -> None:
+    """Verify that confidence scoring is case-insensitive."""
     assert _score("INFY", "INFY.NS", "Infosys Limited") == 1.0
 
 
-# ── _map_asset_class ───────────────────────────────────────────────────────────
+# ── Asset Class Mapping Tests ──────────────────────────────────────────────────
 
 
-def test_map_equity():
+def test_map_equity() -> None:
     assert _map_asset_class("EQUITY") == "equity"
 
 
-def test_map_etf():
+def test_map_etf() -> None:
     assert _map_asset_class("ETF") == "etf"
 
 
-def test_map_unknown_defaults_to_equity():
+def test_map_unknown_defaults_to_equity() -> None:
     assert _map_asset_class("UNKNOWN_TYPE") == "equity"
 
 
-def test_map_case_insensitive():
+def test_map_case_insensitive() -> None:
     assert _map_asset_class("equity") == "equity"
 
 
-# ── resolve_asset ──────────────────────────────────────────────────────────────
+# ── Asset Resolution Tests ────────────────────────────────────────────────────
 
 
 def _make_yf_quote(symbol: str, name: str, quote_type: str = "EQUITY") -> dict:
     return {"symbol": symbol, "longname": name, "quoteType": quote_type}
 
 
-def test_resolve_returns_only_indian_exchanges():
-    """US tickers in the search result should be filtered out."""
+def test_resolve_returns_only_indian_exchanges() -> None:
+    """Verify US tickers/ADRs in search results are filtered out, keeping only .NS and .BO."""
     raw_quotes = [
-        _make_yf_quote("INFY", "Infosys Ltd (US ADR)"),       # no .NS/.BO → filtered
+        _make_yf_quote("INFY", "Infosys Ltd (US ADR)"),  # US ADR, no suffix -> filtered
         _make_yf_quote("INFY.NS", "Infosys Limited"),
     ]
     with patch("app.market_data.resolver._search_quotes", return_value=raw_quotes):
@@ -76,8 +82,8 @@ def test_resolve_returns_only_indian_exchanges():
     assert "INFY" not in tickers
 
 
-def test_resolve_ambiguous_query_returns_both_exchanges():
-    """'tata motors' must return both NSE and BSE — the key invariant."""
+def test_resolve_ambiguous_query_returns_both_exchanges() -> None:
+    """Verify that ambiguous queries return both NSE (.NS) and BSE (.BO) candidates."""
     raw_quotes = [
         _make_yf_quote("TATAMOTORS.NS", "Tata Motors Limited"),
         _make_yf_quote("TATAMOTORS.BO", "Tata Motors Limited"),
@@ -92,10 +98,11 @@ def test_resolve_ambiguous_query_returns_both_exchanges():
     assert len(result.candidates) == 2
 
 
-def test_resolve_sorted_by_confidence_descending():
+def test_resolve_sorted_by_confidence_descending() -> None:
+    """Verify that resolved candidates are sorted by confidence score in descending order."""
     raw_quotes = [
-        _make_yf_quote("TATAMOTORS.BO", "Tata Motors Limited"),  # lower conf
-        _make_yf_quote("TATAMOTORS.NS", "Tata Motors Limited"),  # same conf, second
+        _make_yf_quote("TATAMOTORS.BO", "Tata Motors Limited"),  # lower conf initially
+        _make_yf_quote("TATAMOTORS.NS", "Tata Motors Limited"),
     ]
     with patch("app.market_data.resolver._search_quotes", return_value=raw_quotes):
         result = resolve_asset("tata motors")
@@ -104,7 +111,8 @@ def test_resolve_sorted_by_confidence_descending():
     assert confidences == sorted(confidences, reverse=True)
 
 
-def test_resolve_no_results_returns_unresolved():
+def test_resolve_no_results_returns_unresolved() -> None:
+    """Verify that queries returning no quotes are returned as unresolved."""
     with patch("app.market_data.resolver._search_quotes", return_value=[]):
         result = resolve_asset("zerodha")
 
@@ -112,31 +120,23 @@ def test_resolve_no_results_returns_unresolved():
     assert result.candidates == []
 
 
-def test_resolve_search_failure_returns_unresolved():
-    """If yfinance Search raises, resolver must return resolved=False, not 500."""
-    with patch(
-        "app.market_data.resolver._search_quotes",
-        side_effect=Exception("network error"),
-    ):
-        # _search_quotes internally catches all exceptions, so this path
-        # tests that the wrapper swallows the exception.
-        pass  # _search_quotes already returns [] on exception
-
-    # Direct test of the wrapper:
-    from app.market_data.resolver import _search_quotes
-
+def test_resolve_search_failure_returns_unresolved() -> None:
+    """Verify that resolver catches exceptions in yf.Search and returns unresolved rather than raising."""
     with patch("app.market_data.resolver.yf.Search", side_effect=Exception("oops")):
-        quotes = _search_quotes("anything")
-    assert quotes == []
+        result = resolve_asset("anything")
+    assert result.resolved is False
+    assert result.candidates == []
 
 
-def test_resolve_blank_query_returns_unresolved():
+def test_resolve_blank_query_returns_unresolved() -> None:
+    """Verify that resolving an empty/whitespace query returns unresolved without querying the provider."""
     result = resolve_asset("   ")
     assert result.resolved is False
     assert result.candidates == []
 
 
-def test_resolve_exact_ticker_gets_full_confidence():
+def test_resolve_exact_ticker_gets_full_confidence() -> None:
+    """Verify that query exactly matching a ticker base gets full 1.0 confidence."""
     raw_quotes = [_make_yf_quote("INFY.NS", "Infosys Limited")]
     with patch("app.market_data.resolver._search_quotes", return_value=raw_quotes):
         result = resolve_asset("infy")
@@ -144,7 +144,8 @@ def test_resolve_exact_ticker_gets_full_confidence():
     assert result.candidates[0].confidence == 1.0
 
 
-def test_resolve_asset_class_mapped():
+def test_resolve_asset_class_mapped() -> None:
+    """Verify that quoteType from yfinance is correctly mapped to normalized asset_class."""
     raw_quotes = [_make_yf_quote("NIFTYBEES.NS", "Nippon India ETF Nifty 50", "ETF")]
     with patch("app.market_data.resolver._search_quotes", return_value=raw_quotes):
         result = resolve_asset("nifty etf")

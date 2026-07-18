@@ -5,6 +5,14 @@ from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+    llm_provider: str | None = Field(
+        default=None,
+        description="LLM provider override: 'groq' or 'ollama'. Defaults to the server setting.",
+    )
+    llm_model: str | None = Field(
+        default=None,
+        description="Model name override. Defaults to the server setting for the resolved provider.",
+    )
 
 
 class ChatHealthResponse(BaseModel):
