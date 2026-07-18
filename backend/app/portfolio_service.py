@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -54,11 +55,68 @@ async def replace_portfolio_from_csv(
         await session.execute(
             delete(HoldingModel).where(HoldingModel.portfolio_id == portfolio.id)
         )
-        holding_models = [
-            _holding_model(portfolio.id, portfolio_import.id, holding)
-            for holding in result.holdings
-        ]
+        
+        # Sort holdings chronologically for FIFO
+        trades = sorted(
+            result.holdings,
+            key=lambda x: (x.trade_date or date.min, x.order_execution_time or datetime.min)
+        )
+        
+        realized_pnl = Decimal("0.0")
+        
+        # canonical_ticker -> list of (quantity, price) lots
+        lots_by_ticker = defaultdict(list)
+        
+        for trade in trades:
+            lots = lots_by_ticker[trade.canonical_ticker]
+            if trade.trade_type == "buy":
+                lots.append({"qty": trade.quantity, "price": trade.price})
+            elif trade.trade_type == "sell":
+                sell_qty = trade.quantity
+                while sell_qty > 0 and lots:
+                    lot = lots[0]
+                    if lot["qty"] <= sell_qty:
+                        sell_qty -= lot["qty"]
+                        realized_pnl += lot["qty"] * (trade.price - lot["price"])
+                        lots.pop(0)
+                    else:
+                        lot["qty"] -= sell_qty
+                        realized_pnl += sell_qty * (trade.price - lot["price"])
+                        sell_qty = Decimal("0.0")
+                        
+        holding_models = []
+        for trade in trades:
+            if trade.canonical_ticker not in lots_by_ticker:
+                continue
+                
+            lots = lots_by_ticker.pop(trade.canonical_ticker)
+            if not lots:
+                continue
+                
+            total_qty = sum(lot["qty"] for lot in lots)
+            if total_qty <= 0:
+                continue
+                
+            total_cost = sum(lot["qty"] * lot["price"] for lot in lots)
+            avg_cost = total_cost / total_qty
+            
+            holding_models.append(
+                HoldingModel(
+                    portfolio_id=portfolio.id,
+                    import_id=portfolio_import.id,
+                    raw_ticker=trade.raw_ticker,
+                    canonical_ticker=trade.canonical_ticker,
+                    exchange=trade.exchange,
+                    asset_class="equity",
+                    quantity=total_qty,
+                    avg_cost=avg_cost,
+                    currency="INR",
+                    purchase_date=trade.trade_date,
+                )
+            )
+
         session.add_all(holding_models)
+        portfolio.realized_pnl = realized_pnl
         portfolio.updated_at = datetime.now(timezone.utc)
 
     return {
@@ -83,6 +141,7 @@ async def get_portfolio(session: AsyncSession, *, user_id: str) -> dict[str, Any
         "portfolio_id": portfolio.id,
         "holdings": [_holding_response(holding) for holding in holdings],
         "total_holdings": len(holdings),
+        "realized_pnl": _decimal_number(portfolio.realized_pnl),
         "updated_at": portfolio.updated_at.isoformat(),
     }
 
@@ -108,25 +167,6 @@ async def ensure_default_portfolio(
     session.add(portfolio)
     await session.flush()
     return portfolio
-
-
-def _holding_model(
-    portfolio_id: str,
-    import_id: str,
-    holding: ParsedHolding,
-) -> HoldingModel:
-    return HoldingModel(
-        portfolio_id=portfolio_id,
-        import_id=import_id,
-        raw_ticker=holding.raw_ticker,
-        canonical_ticker=holding.canonical_ticker,
-        exchange=holding.exchange,
-        asset_class=holding.asset_class,
-        quantity=holding.quantity,
-        avg_cost=holding.avg_cost,
-        currency=holding.currency,
-        purchase_date=holding.purchase_date,
-    )
 
 
 def _holding_response(holding: HoldingModel) -> dict[str, Any]:

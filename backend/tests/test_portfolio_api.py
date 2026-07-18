@@ -31,8 +31,8 @@ async def _delete_test_user(user_id: str) -> None:
 
 def test_valid_csv_upload_stores_holdings(client: TestClient) -> None:
     csv_content = (
-        "ticker,exchange,asset_class,quantity,avg_buy_price,currency,purchase_date\n"
-        "INFY.NS,NSE,equity,3,1420.5,INR,2024-01-15\n"
+        "symbol,isin,exchange,trade_type,quantity,price,trade_date\n"
+        "INFY.NS,INE009A01021,NSE,buy,3,1420.5,2024-01-15\n"
     )
 
     response = client.post(
@@ -54,8 +54,8 @@ def test_valid_csv_upload_stores_holdings(client: TestClient) -> None:
 
 
 def test_second_upload_replaces_existing_holdings(client: TestClient) -> None:
-    first_csv = "ticker,quantity,avg_cost\nINFY.NS,3,1420.5\n"
-    second_csv = "ticker,quantity,avg_cost\nTCS.NS,2,3900\n"
+    first_csv = "symbol,isin,trade_type,quantity,price\nINFY.NS,INE009A01021,buy,3,1420.5\n"
+    second_csv = "symbol,isin,trade_type,quantity,price\nTCS.NS,INE467B01029,buy,2,3900\n"
 
     first_response = client.post(
         "/portfolio/upload",
@@ -75,8 +75,8 @@ def test_second_upload_replaces_existing_holdings(client: TestClient) -> None:
 
 
 def test_invalid_upload_leaves_existing_holdings_untouched(client: TestClient) -> None:
-    valid_csv = "ticker,quantity,avg_cost\nINFY.NS,3,1420.5\n"
-    invalid_csv = "ticker,quantity,avg_cost\nTCS.NS,-2,3900\n"
+    valid_csv = "symbol,isin,trade_type,quantity,price\nINFY.NS,INE009A01021,buy,3,1420.5\n"
+    invalid_csv = "symbol,isin,trade_type,quantity,price\nTCS.NS,INE467B01029,buy,-2,3900\n"
     assert (
         client.post(
             "/portfolio/upload",
@@ -109,7 +109,7 @@ def test_upload_rejects_non_csv_filename(client: TestClient) -> None:
         files={
             "file": (
                 "notes.txt",
-                "ticker,quantity,avg_cost\nAAPL,1,10\n",
+                "symbol,isin,trade_type,quantity,price\nAAPL,US0378331005,buy,1,10\n",
                 "text/plain",
             )
         },

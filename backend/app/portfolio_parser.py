@@ -3,28 +3,26 @@ from __future__ import annotations
 import csv
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import StringIO
 from typing import Any
 
 HEADER_ALIASES = {
-    "ticker": "ticker",
-    "instrument": "ticker",
+    "symbol": "symbol",
+    "ticker": "symbol",
+    "isin": "isin",
+    "trade_date": "trade_date",
+    "trade date": "trade_date",
     "exchange": "exchange",
-    "asset_class": "asset_class",
-    "asset class": "asset_class",
+    "trade_type": "trade_type",
+    "trade type": "trade_type",
     "quantity": "quantity",
-    "qty.": "quantity",
     "qty": "quantity",
-    "avg_cost": "avg_cost",
-    "avg cost": "avg_cost",
-    "avg. cost": "avg_cost",
-    "avg_buy_price": "avg_cost",
-    "avg buy price": "avg_cost",
-    "currency": "currency",
-    "purchase_date": "purchase_date",
-    "purchase date": "purchase_date",
+    "qty.": "quantity",
+    "price": "price",
+    "order_execution_time": "order_execution_time",
+    "order execution time": "order_execution_time",
 }
 
 SUFFIX_EXCHANGES = {
@@ -49,14 +47,17 @@ class CsvFieldError:
 
 @dataclass(slots=True)
 class ParsedHolding:
+    # We still call it ParsedHolding to minimize downstream renames if we want,
+    # but functionally it's a TradebookRow.
     raw_ticker: str
     canonical_ticker: str
+    isin: str
+    trade_date: date | None
     exchange: str
-    asset_class: str
+    trade_type: str
     quantity: Decimal
-    avg_cost: Decimal
-    currency: str
-    purchase_date: date | None
+    price: Decimal
+    order_execution_time: datetime | None
 
 
 @dataclass(slots=True)
@@ -91,22 +92,36 @@ def parse_portfolio_csv(text: str) -> ParseResult:
             errors.extend(row_errors)
             continue
 
-        ticker = _clean_required(row["ticker"])
-        canonical_ticker = normalize_ticker(ticker)
+        symbol = _clean_required(row["symbol"])
+        canonical_ticker = normalize_ticker(symbol)
+        
+        # trade_type normalization
+        trade_type = _clean_required(row["trade_type"]).lower()
+        if trade_type not in ("buy", "sell"):
+            errors.append(
+                CsvFieldError(
+                    row=row_number,
+                    field="trade_type",
+                    message="Invalid trade_type. Must be buy or sell.",
+                )
+            )
+            continue
+
         holdings.append(
             ParsedHolding(
                 raw_ticker=canonical_ticker,
                 canonical_ticker=canonical_ticker,
+                isin=_clean_required(row["isin"]),
+                trade_date=_parse_date(row.get("trade_date")),
                 exchange=_normalize_exchange(
                     row.get("exchange"),
                     canonical_ticker,
                     source_headers,
                 ),
-                asset_class=_normalize_asset_class(row.get("asset_class")),
+                trade_type=trade_type,
                 quantity=_parse_decimal(row["quantity"]),
-                avg_cost=_parse_decimal(row["avg_cost"]),
-                currency=_normalize_currency(row.get("currency")),
-                purchase_date=_parse_date(row.get("purchase_date")),
+                price=_parse_decimal(row["price"]),
+                order_execution_time=_parse_datetime(row.get("order_execution_time")),
             )
         )
 
@@ -147,7 +162,8 @@ def _canonical_row(
 
 def _validate_row(row: dict[str, str], row_number: int) -> list[CsvFieldError]:
     errors: list[CsvFieldError] = []
-    for field in ("ticker", "quantity", "avg_cost"):
+    # Required fields for Tradebook
+    for field in ("symbol", "isin", "trade_type", "quantity", "price"):
         if not _clean_optional(row.get(field)):
             errors.append(
                 CsvFieldError(
@@ -168,26 +184,32 @@ def _validate_row(row: dict[str, str], row_number: int) -> list[CsvFieldError]:
                     CsvFieldError(row_number, "quantity", "quantity must be positive.")
                 )
 
-    if _clean_optional(row.get("avg_cost")):
+    if _clean_optional(row.get("price")):
         try:
-            avg_cost = _parse_decimal(row["avg_cost"])
+            price = _parse_decimal(row["price"])
         except ValueError as exc:
-            errors.append(CsvFieldError(row_number, "avg_cost", str(exc)))
+            errors.append(CsvFieldError(row_number, "price", str(exc)))
         else:
-            if avg_cost < 0:
+            if price < 0:
                 errors.append(
                     CsvFieldError(
                         row_number,
-                        "avg_cost",
-                        "avg_cost must be non-negative.",
+                        "price",
+                        "price must be non-negative.",
                     )
                 )
 
-    if _clean_optional(row.get("purchase_date")):
+    if _clean_optional(row.get("trade_date")):
         try:
-            _parse_date(row.get("purchase_date"))
+            _parse_date(row.get("trade_date"))
         except ValueError as exc:
-            errors.append(CsvFieldError(row_number, "purchase_date", str(exc)))
+            errors.append(CsvFieldError(row_number, "trade_date", str(exc)))
+
+    if _clean_optional(row.get("order_execution_time")):
+        try:
+            _parse_datetime(row.get("order_execution_time"))
+        except ValueError as exc:
+            errors.append(CsvFieldError(row_number, "order_execution_time", str(exc)))
 
     return errors
 
@@ -208,9 +230,19 @@ def _parse_date(value: str | None) -> date | None:
     if not cleaned:
         return None
     try:
-        return date.fromisoformat(cleaned)
+        return date.fromisoformat(cleaned[:10])
     except ValueError as exc:
-        raise ValueError("purchase_date must be ISO formatted (YYYY-MM-DD).") from exc
+        raise ValueError("trade_date must be ISO formatted (YYYY-MM-DD).") from exc
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    cleaned = _clean_optional(value)
+    if not cleaned:
+        return None
+    try:
+        return datetime.fromisoformat(cleaned)
+    except ValueError as exc:
+        raise ValueError("order_execution_time must be ISO formatted.") from exc
 
 
 def _normalize_exchange(
@@ -229,16 +261,6 @@ def _normalize_exchange(
     return "UNKNOWN"
 
 
-def _normalize_asset_class(value: str | None) -> str:
-    cleaned = _clean_optional(value)
-    return cleaned.lower() if cleaned else "equity"
-
-
-def _normalize_currency(value: str | None) -> str:
-    cleaned = _clean_optional(value)
-    return cleaned.upper() if cleaned else "INR"
-
-
 def _header_key(value: str) -> str:
     return " ".join(value.strip().lower().split())
 
@@ -252,3 +274,4 @@ def _clean_required(value: str | None) -> str:
 
 def _clean_optional(value: str | None) -> str:
     return str(value or "").strip()
+

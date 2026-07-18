@@ -41,6 +41,9 @@ class PortfolioModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )
+    realized_pnl: Mapped[Decimal] = mapped_column(
+        Numeric(20, 6), default=Decimal("0.0"), nullable=False
+    )
 
 
 class PortfolioImportModel(Base):

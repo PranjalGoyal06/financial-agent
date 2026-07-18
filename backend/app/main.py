@@ -83,6 +83,8 @@ async def _build_portfolio_context(session: AsyncSession) -> str:
             f"| {h.get('avg_cost', '')} "
             f"| {h.get('currency', '')} |"
         )
+    if "realized_pnl" in data:
+        lines.append(f"\nRealized P&L: ₹{data['realized_pnl']}")
     return "\n".join(lines)
 
 

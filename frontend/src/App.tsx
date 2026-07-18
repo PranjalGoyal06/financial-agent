@@ -110,6 +110,7 @@ type PortfolioResponse = {
   portfolio_id: string;
   holdings: Holding[];
   total_holdings: number;
+  realized_pnl?: number;
   updated_at: string;
 };
 
@@ -440,6 +441,11 @@ export function App() {
           <div className="portfolio-header__text">
             <p className="eyebrow">Portfolio</p>
             <span className="portfolio-stat">{portfolio?.total_holdings ?? 0} holdings</span>
+            {portfolio?.realized_pnl !== undefined && (
+              <span className="portfolio-stat realized-pnl">
+                {" · Realised P&L: ₹" + formatNumber(portfolio.realized_pnl)}
+              </span>
+            )}
           </div>
           <span className={`portfolio-status-dot${portfolio?.total_holdings ? " portfolio-status-dot--ok" : ""}`} />
         </header>
