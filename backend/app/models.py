@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -133,4 +133,57 @@ class InstrumentModel(Base):
     )  # JSON array of lowercase aliases, e.g. ["tata motors", "tatamotor"]
     last_synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
+class WatchlistItem(Base):
+    """User watchlist entries.
+
+    The ``get_watchlist()`` service reads from the ``holdings`` table by default
+    (watchlist = current holdings) — this table is populated once a watchlist
+    management UI exists.  Callers of ``get_watchlist()`` are insulated from
+    this detail and will not need changes when the backing source switches.
+    """
+
+    __tablename__ = "watchlist_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    canonical_ticker: Mapped[str] = mapped_column(String(40), nullable=False)
+    exchange: Mapped[str] = mapped_column(String(10), nullable=False)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class ResearchArtifact(Base):
+    """Artifacts produced by the deep research graph.
+
+    One row per node output (macro / sector / ticker / portfolio) per run.
+    All artifacts from a single graph execution share the same ``run_id``.
+
+    ``recommendation`` and ``confidence_score`` are denormalized from the
+    structured LLM output at persist time so the portfolio tab can render
+    recommendation pills with a single SQL query — no JSON parsing needed.
+    Only ticker-type rows carry these values; other types leave them NULL.
+    """
+
+    __tablename__ = "research_artifacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    run_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    artifact_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # "macro" | "sector" | "ticker" | "portfolio"
+    target: Mapped[str | None] = mapped_column(String(40))
+    # canonical_ticker / sector name / null for macro & portfolio
+    content_markdown: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_pack_json: Mapped[str] = mapped_column(Text, nullable=False)
+    recommendation: Mapped[str | None] = mapped_column(String(20))
+    # "buy"|"add"|"hold"|"reduce"|"watch"|"no_action"|"insufficient_data"
+    confidence_score: Mapped[int | None] = mapped_column(Integer)
+    # 0-100 — drives the confidence label on the portfolio tab recommendation pill
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False, index=True
     )

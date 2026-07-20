@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from app.portfolio_parser import parse_portfolio_csv, normalize_ticker
+
+from app.portfolio_parser import normalize_ticker, parse_portfolio_csv
 
 
 def test_valid_canonical_csv_imports_holdings() -> None:

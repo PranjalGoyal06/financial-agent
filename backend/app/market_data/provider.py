@@ -6,6 +6,7 @@ from typing import Literal, Protocol
 import yfinance as yf
 
 from app.market_data.schemas import (
+    FundamentalsSnapshot,
     HistoricalBar,
     HistoricalDataResponse,
     MarketQuote,
@@ -58,6 +59,8 @@ class MarketDataProvider(Protocol):
     def get_historical(
         self, ticker: str, period: str, interval: str
     ) -> HistoricalDataResponse: ...
+
+    def get_fundamentals(self, ticker: str) -> FundamentalsSnapshot: ...
 
 
 # ── yfinance field mappings ────────────────────────────────────────────────────
@@ -146,6 +149,53 @@ class YFinanceProvider:
             interval=interval,
             bars=bars,
             adjusted=True,  # yfinance auto_adjust=True always
+            provider=self.PROVIDER_NAME,
+            fetched_at=datetime.now(timezone.utc),
+        )
+
+    def get_fundamentals(self, ticker: str) -> FundamentalsSnapshot:
+        """Extract fundamental metrics from yfinance .info.
+
+        Reuses the same network call as get_quote() — yfinance caches the
+        Ticker object internally so back-to-back calls do not double-fetch.
+
+        Reliability caveat: NSE/BSE fundamentals from yfinance are directional,
+        not forensic-grade.  Any field may be None.  Callers must never assume
+        a field is present — always check for None before using a value.
+        """
+        try:
+            info: dict = yf.Ticker(ticker).info
+        except Exception as exc:
+            raise ProviderError(f"yfinance request failed for '{ticker}'.") from exc
+
+        # Require at least a price to confirm the ticker resolves.
+        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        if not price:
+            raise TickerNotFoundError(ticker)
+
+        return FundamentalsSnapshot(
+            ticker=ticker,
+            exchange=exchange_from_ticker(ticker),
+            pe_ratio=_optional_float(info.get("trailingPE")),
+            pb_ratio=_optional_float(info.get("priceToBook")),
+            ps_ratio=_optional_float(info.get("priceToSalesTrailing12Months")),
+            peg_ratio=_optional_float(info.get("pegRatio")),
+            enterprise_value=_optional_float(info.get("enterpriseValue")),
+            eps_ttm=_optional_float(info.get("trailingEps")),
+            eps_forward=_optional_float(info.get("forwardEps")),
+            book_value_per_share=_optional_float(info.get("bookValue")),
+            profit_margin=_optional_float(info.get("profitMargins")),
+            operating_margin=_optional_float(info.get("operatingMargins")),
+            return_on_equity=_optional_float(info.get("returnOnEquity")),
+            return_on_assets=_optional_float(info.get("returnOnAssets")),
+            dividend_yield=_optional_float(info.get("dividendYield")),
+            payout_ratio=_optional_float(info.get("payoutRatio")),
+            market_cap=_optional_float(info.get("marketCap")),
+            shares_outstanding=_optional_float(info.get("sharesOutstanding")),
+            revenue_ttm=_optional_float(info.get("totalRevenue")),
+            revenue_growth=_optional_float(info.get("revenueGrowth")),
+            earnings_growth=_optional_float(info.get("earningsGrowth")),
+            analyst_target_price=_optional_float(info.get("targetMeanPrice")),
             provider=self.PROVIDER_NAME,
             fetched_at=datetime.now(timezone.utc),
         )

@@ -121,8 +121,36 @@ async def get_historical_data_tool(
         raise ToolException(f"Market data unavailable: {exc}") from exc
 
 
+_FUND_DESC = (
+    "Get fundamental financial metrics for an Indian equity ticker. The ticker "
+    "MUST end with .NS (NSE) or .BO (BSE). Returns valuation ratios (P/E, P/B, P/S, PEG), "
+    "operating margins, return on equity (ROE), revenue/earnings growth, and analyst targets. "
+    "Ratios may be None if not available on yfinance — treat None as unavailable, do not invent values."
+)
+
+
+@tool(description=_FUND_DESC)
+async def get_fundamentals_tool(ticker: str) -> str:
+    """Get key fundamental metrics (valuation, margins, growth) for an equity ticker."""
+    ticker = ticker.upper()
+    try:
+        fund = await asyncio.to_thread(_provider.get_fundamentals, ticker)
+        return fund.model_dump_json()
+    except TickerNotFoundError as exc:
+        raise ToolException(f"Ticker '{ticker}' not found on the exchange.") from exc
+    except ProviderError as exc:
+        raise ToolException(f"Fundamentals data unavailable: {exc}") from exc
+
+
 # Public list — imported by graph.py to bind to the agent.
 get_quote_tool.handle_tool_error = True
 get_historical_data_tool.handle_tool_error = True
+get_fundamentals_tool.handle_tool_error = True
 
-MARKET_DATA_TOOLS = [resolve_asset_tool, get_quote_tool, get_historical_data_tool]
+MARKET_DATA_TOOLS = [
+    resolve_asset_tool,
+    get_quote_tool,
+    get_historical_data_tool,
+    get_fundamentals_tool,
+]
+

@@ -7,7 +7,6 @@ import pytest
 from app.graph import get_agent
 from app.main import _build_portfolio_context, _tool_output_summary
 
-
 # ── _tool_output_summary ───────────────────────────────────────────────────────
 
 

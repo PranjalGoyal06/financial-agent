@@ -14,7 +14,7 @@ from app.models import (
     PortfolioModel,
     UserModel,
 )
-from app.portfolio_parser import CsvFieldError, ParsedHolding, parse_portfolio_csv
+from app.portfolio_parser import CsvFieldError, parse_portfolio_csv
 
 
 class PortfolioValidationError(Exception):

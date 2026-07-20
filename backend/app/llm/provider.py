@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from typing import Any, Type, TypeVar
-from pydantic import BaseModel
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import Runnable
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
+from pydantic import BaseModel
 
 from app.config import settings
 

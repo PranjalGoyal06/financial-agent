@@ -21,6 +21,7 @@ from app.portfolio_service import (
     get_portfolio,
     replace_portfolio_from_csv,
 )
+from app.research.router import router as research_router
 from app.schemas import ChatHealthResponse, ChatRequest
 
 
@@ -39,6 +40,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(market_data_router)
+app.include_router(research_router)
+
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

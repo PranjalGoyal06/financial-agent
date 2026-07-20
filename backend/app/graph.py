@@ -9,9 +9,41 @@ from langgraph.store.base import BaseStore
 from pydantic import BaseModel
 
 from app.llm.provider import get_chat_model
-
-from app.config import settings
 from app.market_data.tools import MARKET_DATA_TOOLS
+from app.portfolio.tools import get_ticker_recommendation_tool
+from app.quant.tools import (
+    compute_52w_distance_tool,
+    compute_max_drawdown_tool,
+    compute_returns_tool,
+    compute_sharpe_ratio_tool,
+    compute_volatility_tool,
+)
+from app.search.tools import web_search_tool
+from app.ta.tools import (
+    compute_ema_tool,
+    compute_rsi_tool,
+    compute_sma_tool,
+)
+
+# Unified toolset for the ReAct agent
+AGENT_TOOLS = [
+    *MARKET_DATA_TOOLS,
+    web_search_tool,
+    compute_returns_tool,
+    compute_volatility_tool,
+    compute_max_drawdown_tool,
+    compute_sharpe_ratio_tool,
+    compute_52w_distance_tool,
+    compute_sma_tool,
+    compute_ema_tool,
+    compute_rsi_tool,
+    get_ticker_recommendation_tool,
+]
+
+# Set handle_tool_error = True on all of them
+for t in AGENT_TOOLS:
+    t.handle_tool_error = True
+
 
 # ── System prompt ──────────────────────────────────────────────────────────────
 #
@@ -111,7 +143,7 @@ def get_agent(
 
     return create_react_agent(
         llm,
-        tools=SequentialToolNode(MARKET_DATA_TOOLS),
+        tools=SequentialToolNode(AGENT_TOOLS),
         prompt=SystemMessage(content=system_prompt),
         version="v1",
     )

@@ -23,7 +23,12 @@ class Settings(BaseSettings):
     ollama_base_url: str = Field(
         default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL"
     )
-    ollama_model: str = Field(default="llama3", validation_alias="OLLAMA_MODEL")
+    ollama_model: str = Field(default="qwen3.5:latest", validation_alias="OLLAMA_MODEL")
+    # ── Tavily ─────────────────────────────────────────────────────────────────
+    tavily_api_key: str | None = Field(default=None, validation_alias="TAVILY_API_KEY")
+    # ── ChromaDB ───────────────────────────────────────────────────────────────
+    chroma_host: str = Field(default="localhost", validation_alias="CHROMA_HOST")
+    chroma_port: int = Field(default=8001, validation_alias="CHROMA_PORT")
     cors_origins: list[str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
