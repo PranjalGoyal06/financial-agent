@@ -19,6 +19,21 @@ _SUFFIX_TO_EXCHANGE: dict[str, Literal["NSE", "BSE"]] = {
     ".BO": "BSE",
 }
 
+_TICKER_ALIASES: dict[str, str] = {
+    "TATAMOTORS": "TMPV.NS",
+    "TATAMOTORS.NS": "TMPV.NS",
+    "TATAMOTORS.BO": "TMPV.BO",
+}
+
+
+def normalize_ticker_symbol(ticker: str) -> str:
+    cleaned = ticker.strip().upper()
+    if cleaned in _TICKER_ALIASES:
+        return _TICKER_ALIASES[cleaned]
+    if not (cleaned.endswith(".NS") or cleaned.endswith(".BO")):
+        cleaned = f"{cleaned}.NS"
+    return _TICKER_ALIASES.get(cleaned, cleaned)
+
 
 def exchange_from_ticker(ticker: str) -> Literal["NSE", "BSE"]:
     upper = ticker.upper()
@@ -63,18 +78,6 @@ class MarketDataProvider(Protocol):
     def get_fundamentals(self, ticker: str) -> FundamentalsSnapshot: ...
 
 
-# ── yfinance field mappings ────────────────────────────────────────────────────
-#
-#   MarketQuote field         yfinance info key
-#   ─────────────────────     ───────────────────────────────────
-#   price                     currentPrice → regularMarketPrice
-#   day_change                regularMarketChange
-#   day_change_pct            regularMarketChangePercent
-#   volume                    regularMarketVolume
-#   week52_high               fiftyTwoWeekHigh
-#   week52_low                fiftyTwoWeekLow
-
-
 class YFinanceProvider:
     """yfinance-backed implementation of MarketDataProvider.
 
@@ -89,19 +92,29 @@ class YFinanceProvider:
     QUOTE_TTL_SECONDS: int = 90  # midpoint of the 60–120 s window
 
     def get_quote(self, ticker: str) -> MarketQuote:
+        original_ticker = ticker
+        target_ticker = normalize_ticker_symbol(ticker)
         try:
-            info: dict = yf.Ticker(ticker).info
+            info: dict = yf.Ticker(target_ticker).info
         except Exception as exc:
             raise ProviderError(f"yfinance request failed for '{ticker}'.") from exc
 
         price = info.get("currentPrice") or info.get("regularMarketPrice")
         if not price:
+            try:
+                # Fallback to fast_info for ETFs or symbols where info doesn't have regularMarketPrice
+                fast_price = yf.Ticker(target_ticker).fast_info.get("lastPrice")
+                if fast_price is not None and not (isinstance(fast_price, float) and (fast_price != fast_price)):
+                    price = fast_price
+            except Exception:
+                pass
+        if not price:
             raise TickerNotFoundError(ticker)
 
         now = datetime.now(timezone.utc)
         return MarketQuote(
-            ticker=ticker,
-            exchange=exchange_from_ticker(ticker),
+            ticker=original_ticker,
+            exchange=exchange_from_ticker(target_ticker),
             price=float(price),
             day_change=float(info.get("regularMarketChange") or 0.0),
             day_change_pct=float(info.get("regularMarketChangePercent") or 0.0),
@@ -117,8 +130,10 @@ class YFinanceProvider:
     def get_historical(
         self, ticker: str, period: str, interval: str
     ) -> HistoricalDataResponse:
+        original_ticker = ticker
+        target_ticker = normalize_ticker_symbol(ticker)
         try:
-            df = yf.Ticker(ticker).history(
+            df = yf.Ticker(target_ticker).history(
                 period=period, interval=interval, auto_adjust=True
             )
         except Exception as exc:
@@ -144,7 +159,7 @@ class YFinanceProvider:
             )
 
         return HistoricalDataResponse(
-            ticker=ticker,
+            ticker=original_ticker,
             range=period,
             interval=interval,
             bars=bars,
@@ -154,28 +169,28 @@ class YFinanceProvider:
         )
 
     def get_fundamentals(self, ticker: str) -> FundamentalsSnapshot:
-        """Extract fundamental metrics from yfinance .info.
-
-        Reuses the same network call as get_quote() — yfinance caches the
-        Ticker object internally so back-to-back calls do not double-fetch.
-
-        Reliability caveat: NSE/BSE fundamentals from yfinance are directional,
-        not forensic-grade.  Any field may be None.  Callers must never assume
-        a field is present — always check for None before using a value.
-        """
+        original_ticker = ticker
+        target_ticker = normalize_ticker_symbol(ticker)
         try:
-            info: dict = yf.Ticker(ticker).info
+            info: dict = yf.Ticker(target_ticker).info
         except Exception as exc:
             raise ProviderError(f"yfinance request failed for '{ticker}'.") from exc
 
         # Require at least a price to confirm the ticker resolves.
         price = info.get("currentPrice") or info.get("regularMarketPrice")
         if not price:
+            try:
+                fast_price = yf.Ticker(target_ticker).fast_info.get("lastPrice")
+                if fast_price is not None and not (isinstance(fast_price, float) and (fast_price != fast_price)):
+                    price = fast_price
+            except Exception:
+                pass
+        if not price:
             raise TickerNotFoundError(ticker)
 
         return FundamentalsSnapshot(
-            ticker=ticker,
-            exchange=exchange_from_ticker(ticker),
+            ticker=original_ticker,
+            exchange=exchange_from_ticker(target_ticker),
             pe_ratio=_optional_float(info.get("trailingPE")),
             pb_ratio=_optional_float(info.get("priceToBook")),
             ps_ratio=_optional_float(info.get("priceToSalesTrailing12Months")),

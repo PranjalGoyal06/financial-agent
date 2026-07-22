@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
 
 from app.config import settings
 from app.db import get_session, init_db
@@ -21,7 +22,11 @@ from app.portfolio_service import (
     get_portfolio,
     replace_portfolio_from_csv,
 )
+from app.portfolio.lib import get_ticker_recommendation
+from app.market_data.provider import YFinanceProvider
+from app.market_data.schemas import MarketQuote
 from app.research.router import router as research_router
+from app.briefing.router import router as briefing_router
 from app.schemas import ChatHealthResponse, ChatRequest
 
 
@@ -41,6 +46,7 @@ app.add_middleware(
 )
 app.include_router(market_data_router)
 app.include_router(research_router)
+app.include_router(briefing_router)
 
 
 
@@ -251,6 +257,167 @@ async def chat(
 @app.get("/portfolio")
 async def portfolio(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     return await get_portfolio(session, user_id=settings.default_user_id)
+
+
+_quote_provider = YFinanceProvider()
+
+
+def _to_yf_symbol(ticker: str, exchange: str | None = None) -> str:
+    upper = ticker.upper()
+    if upper.endswith(".NS") or upper.endswith(".BO"):
+        return upper
+    if exchange and exchange.upper() in ("BSE", "BO"):
+        return f"{upper}.BO"
+    return f"{upper}.NS"
+
+
+def _get_sparkline(yf_symbol: str) -> list[float]:
+    try:
+        t = yf.Ticker(yf_symbol)
+        df = t.history(period="5d")
+        if df is not None and not df.empty:
+            closes = df["Close"].dropna().tolist()
+            return [round(float(c), 2) for c in closes]
+    except Exception as e:
+        import traceback
+        print(f"Sparkline error for {yf_symbol}: {e}\n{traceback.format_exc()}")
+    return []
+
+
+def _fetch_sparkline_real(yf_symbol: str) -> list[float]:
+    try:
+        hist = _quote_provider.get_historical(yf_symbol, period="1mo", interval="1d")
+        if hist and hist.bars:
+            return [round(float(b.close), 2) for b in hist.bars]
+    except Exception as e:
+        print(f"Sparkline fetch error for {yf_symbol}: {e}")
+    return []
+
+
+async def _fetch_quote_safe(ticker: str, exchange: str | None = None) -> dict[str, Any]:
+    yf_symbol = _to_yf_symbol(ticker, exchange)
+    try:
+        quote = await asyncio.to_thread(_quote_provider.get_quote, yf_symbol)
+        quote_dict = quote.model_dump(mode="json")
+        sparkline = await asyncio.to_thread(_fetch_sparkline_real, yf_symbol)
+        quote_dict["sparkline"] = sparkline
+        return quote_dict
+    except Exception as e:
+        if not (ticker.upper().endswith(".NS") or ticker.upper().endswith(".BO")):
+            alt_symbol = (
+                f"{ticker.upper()}.BO"
+                if yf_symbol.endswith(".NS")
+                else f"{ticker.upper()}.NS"
+            )
+            try:
+                quote = await asyncio.to_thread(_quote_provider.get_quote, alt_symbol)
+                quote_dict = quote.model_dump(mode="json")
+                sparkline = await asyncio.to_thread(_fetch_sparkline_real, alt_symbol)
+                quote_dict["sparkline"] = sparkline
+                return quote_dict
+            except Exception:
+                pass
+        return {"error": str(e)}
+
+
+@app.get("/portfolio/quotes")
+async def portfolio_quotes(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    portfolio_data = await get_portfolio(session, user_id=settings.default_user_id)
+    holdings = portfolio_data.get("holdings", [])
+
+    # Map canonical_ticker -> exchange
+    ticker_exchanges: dict[str, str | None] = {}
+    for h in holdings:
+        canonical = h.get("canonical_ticker")
+        if canonical and h.get("asset_class") in ("equity", "etf"):
+            ticker_exchanges[canonical] = h.get("exchange")
+
+    if not ticker_exchanges:
+        return {}
+
+    tickers = list(ticker_exchanges.keys())
+    results = await asyncio.gather(
+        *(_fetch_quote_safe(t, ticker_exchanges[t]) for t in tickers)
+    )
+    return {ticker: res for ticker, res in zip(tickers, results)}
+
+
+@app.get("/portfolio/valued")
+async def portfolio_valued(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    portfolio_data = await get_portfolio(session, user_id=settings.default_user_id)
+    holdings = portfolio_data.get("holdings", [])
+    
+    if not holdings:
+        return {
+            "summary": {
+                "total_market_value": 0.0,
+                "total_unrealized_pnl": 0.0,
+                "realized_pnl": float(portfolio_data.get("realized_pnl", 0))
+            },
+            "holdings": []
+        }
+
+    ticker_exchanges: dict[str, str | None] = {}
+    for h in holdings:
+        canonical = h.get("canonical_ticker")
+        if canonical and h.get("asset_class") in ("equity", "etf"):
+            ticker_exchanges[canonical] = h.get("exchange")
+
+    tickers = list(ticker_exchanges.keys())
+    
+    quote_coros = [_fetch_quote_safe(t, ticker_exchanges[t]) for t in tickers]
+    quote_results = await asyncio.gather(*quote_coros)
+    recommendation_results = [await get_ticker_recommendation(session, t) for t in tickers]
+    
+    quotes_by_ticker = {ticker: res for ticker, res in zip(tickers, quote_results)}
+    recommendations_by_ticker = {ticker: res for ticker, res in zip(tickers, recommendation_results)}
+
+    total_market_value = 0.0
+    total_invested = 0.0
+
+    valued_holdings = []
+    for h in holdings:
+        canonical = h.get("canonical_ticker")
+        quote = quotes_by_ticker.get(canonical, {})
+        rec = recommendations_by_ticker.get(canonical) or {}
+        
+        qty = float(h.get("quantity", 0))
+        avg_cost = float(h.get("avg_cost", 0))
+        invested = qty * avg_cost
+        
+        price = quote.get("price")
+        market_value = None
+        unrealized_pnl_pct = None
+        
+        if price is not None:
+            market_value = qty * float(price)
+            if invested > 0:
+                unrealized_pnl_pct = ((market_value - invested) / invested) * 100
+            total_market_value += market_value
+            total_invested += invested
+            
+        row = dict(h)
+        row["market_value"] = market_value
+        row["unrealized_pnl_pct"] = unrealized_pnl_pct
+        row["recommendation"] = rec.get("recommendation")
+        row["confidence_score"] = rec.get("confidence_score")
+        row["last_updated"] = rec.get("last_updated").isoformat() if rec.get("last_updated") else None
+        row["run_id"] = rec.get("run_id")
+        
+        valued_holdings.append(row)
+
+    total_unrealized_pnl = 0.0
+    if total_invested > 0:
+        total_unrealized_pnl = total_market_value - total_invested
+        
+    return {
+        "summary": {
+            "total_market_value": total_market_value,
+            "total_unrealized_pnl": total_unrealized_pnl,
+            "realized_pnl": float(portfolio_data.get("realized_pnl", 0))
+        },
+        "holdings": valued_holdings
+    }
 
 
 @app.post("/portfolio/upload", status_code=status.HTTP_201_CREATED)

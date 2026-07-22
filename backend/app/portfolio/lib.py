@@ -47,4 +47,5 @@ async def get_ticker_recommendation(
         "recommendation": artifact.recommendation,
         "confidence_score": artifact.confidence_score,
         "last_updated": artifact.created_at,
+        "run_id": artifact.run_id,
     }

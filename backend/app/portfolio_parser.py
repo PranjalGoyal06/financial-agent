@@ -82,18 +82,41 @@ def parse_portfolio_csv(text: str) -> ParseResult:
 
     normalized_headers = _normalized_headers(reader.fieldnames)
     source_headers = {_header_key(header) for header in reader.fieldnames}
+    
+    raw_rows = list(reader)
+    if not raw_rows:
+        return ParseResult(
+            holdings=[],
+            errors=[
+                CsvFieldError(
+                    row=1,
+                    field="file",
+                    message="CSV must include at least one row.",
+                )
+            ],
+        )
+
+    # First pass: map symbol to ISIN if present in any row
+    symbol_isin_map: dict[str, str] = {}
+    for raw_row in raw_rows:
+        row = _canonical_row(raw_row, normalized_headers)
+        symbol = _clean_optional(row.get("symbol"))
+        isin = _clean_optional(row.get("isin"))
+        if symbol and isin:
+            symbol_isin_map[normalize_ticker(symbol)] = isin
+
     holdings: list[ParsedHolding] = []
     errors: list[CsvFieldError] = []
 
-    for row_number, raw_row in enumerate(reader, start=2):
+    for row_number, raw_row in enumerate(raw_rows, start=2):
         row = _canonical_row(raw_row, normalized_headers)
         row_errors = _validate_row(row, row_number)
         if row_errors:
             errors.extend(row_errors)
             continue
 
-        symbol = _clean_required(row["symbol"])
-        canonical_ticker = normalize_ticker(symbol)
+        raw_symbol = _clean_required(row["symbol"]).upper()
+        canonical_ticker = normalize_ticker(raw_symbol)
         
         # trade_type normalization
         trade_type = _clean_required(row["trade_type"]).lower()
@@ -107,11 +130,13 @@ def parse_portfolio_csv(text: str) -> ParseResult:
             )
             continue
 
+        isin = _clean_optional(row.get("isin")) or symbol_isin_map.get(canonical_ticker, "") or symbol_isin_map.get(raw_symbol, "")
+
         holdings.append(
             ParsedHolding(
-                raw_ticker=canonical_ticker,
+                raw_ticker=raw_symbol,
                 canonical_ticker=canonical_ticker,
-                isin=_clean_required(row["isin"]),
+                isin=isin,
                 trade_date=_parse_date(row.get("trade_date")),
                 exchange=_normalize_exchange(
                     row.get("exchange"),
@@ -125,20 +150,18 @@ def parse_portfolio_csv(text: str) -> ParseResult:
             )
         )
 
-    if not holdings and not errors:
-        errors.append(
-            CsvFieldError(
-                row=1,
-                field="file",
-                message="CSV must include at least one row.",
-            )
-        )
-
     return ParseResult(holdings=holdings, errors=errors)
 
 
+TICKER_RENAMES: dict[str, str] = {
+    "TATAMOTORS": "TMPV",
+    "GOLD1": "GOLDBEES",
+}
+
+
 def normalize_ticker(value: str) -> str:
-    return _clean_required(value).upper()
+    cleaned = _clean_required(value).upper()
+    return TICKER_RENAMES.get(cleaned, cleaned)
 
 
 def _normalized_headers(fieldnames: list[str]) -> dict[str, str]:
@@ -163,7 +186,7 @@ def _canonical_row(
 def _validate_row(row: dict[str, str], row_number: int) -> list[CsvFieldError]:
     errors: list[CsvFieldError] = []
     # Required fields for Tradebook
-    for field in ("symbol", "isin", "trade_type", "quantity", "price"):
+    for field in ("symbol", "trade_type", "quantity", "price"):
         if not _clean_optional(row.get(field)):
             errors.append(
                 CsvFieldError(

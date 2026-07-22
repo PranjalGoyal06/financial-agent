@@ -107,7 +107,7 @@ async def replace_portfolio_from_csv(
                     raw_ticker=trade.raw_ticker,
                     canonical_ticker=trade.canonical_ticker,
                     exchange=trade.exchange,
-                    asset_class="equity",
+                    asset_class=_infer_asset_class(trade.isin),
                     quantity=total_qty,
                     avg_cost=avg_cost,
                     currency="INR",
@@ -190,3 +190,18 @@ def _decimal_number(value: Decimal) -> int | float:
     if value == value.to_integral_value():
         return int(value)
     return float(value)
+
+
+# ISIN prefix classification:
+#   INE* → corporate equity (NSE/BSE listed shares)
+#   INF* → investment funds (exchange-traded ETFs / MFs)
+# Anything else (no ISIN, unknown prefix) defaults to "equity" conservatively.
+_ISIN_PREFIX_ASSET_CLASS: dict[str, str] = {
+    "INE": "equity",
+    "INF": "etf",
+}
+
+
+def _infer_asset_class(isin: str) -> str:
+    prefix = (isin or "")[:3].upper()
+    return _ISIN_PREFIX_ASSET_CLASS.get(prefix, "equity")

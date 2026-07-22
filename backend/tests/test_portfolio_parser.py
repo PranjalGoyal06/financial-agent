@@ -51,11 +51,6 @@ def test_missing_required_fields_report_row_numbers() -> None:
     assert [error.as_dict() for error in result.errors] == [
         {
             "row": 2,
-            "field": "isin",
-            "message": "isin is required.",
-        },
-        {
-            "row": 2,
             "field": "trade_type",
             "message": "trade_type is required.",
         },

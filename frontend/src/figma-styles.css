@@ -1,0 +1,4678 @@
+/* Portfolio */
+
+position: relative;
+width: 1440px;
+height: 983px;
+
+background: #F5F7F9;
+border-radius: 20px;
+
+
+/* Frame 11 */
+
+position: absolute;
+width: 272px;
+height: 983px;
+left: 0px;
+top: 0px;
+
+background: #FFFFFF;
+border-radius: 20px 0px 0px 20px;
+
+
+/* MAIN MENU */
+
+position: absolute;
+width: 66px;
+height: 14px;
+left: 34px;
+top: 262px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #000000;
+
+
+
+/* Frame 21 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 20px;
+
+position: absolute;
+width: 65px;
+height: 116px;
+left: 70px;
+top: 440px;
+
+
+
+/* Stock/ETF */
+
+width: 55px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Index */
+
+width: 29px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #4C6FB7;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Currency */
+
+width: 48px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Mutual Fund */
+
+width: 65px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+
+/* AI WATCHLIST */
+
+position: absolute;
+width: 76px;
+height: 14px;
+left: 35px;
+top: 90px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+
+color: #000000;
+
+
+
+/* Frame 44 */
+
+position: absolute;
+width: 100px;
+height: 100px;
+left: 3px;
+top: 48px;
+
+
+
+/* Frame 14 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 20px;
+
+position: absolute;
+width: 68px;
+height: 16px;
+left: 34px;
+top: 300px;
+
+
+
+/* home-2 */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/home-2 */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* home-2 */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 5.21%;
+top: 5.31%;
+bottom: 5.21%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 46.88%;
+right: 46.88%;
+top: 59.38%;
+bottom: 21.88%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Home */
+
+width: 32px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 42 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 24px;
+
+position: absolute;
+width: 116px;
+height: 94px;
+left: 34px;
+top: 684px;
+
+
+
+/* SUPPORT */
+
+width: 53px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 16 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 20px;
+
+width: 97px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* people */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/people */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* people */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 60.71%;
+right: 11.54%;
+top: 5.25%;
+bottom: 67%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 67.45%;
+right: 5.33%;
+top: 36.47%;
+bottom: 36.33%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 11.37%;
+right: 60.88%;
+top: 5.21%;
+bottom: 67.04%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 67.58%;
+top: 36.47%;
+bottom: 36.33%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 35.71%;
+right: 36.54%;
+top: 36.38%;
+bottom: 35.87%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 30.33%;
+right: 30.33%;
+top: 67.58%;
+bottom: 5.17%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Community */
+
+width: 61px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 15 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 20px;
+
+width: 116px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* call */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/call */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* call */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 5.38%;
+top: 5.21%;
+bottom: 5.21%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Help & Support */
+
+width: 80px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 17 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 20px;
+
+position: absolute;
+width: 88px;
+height: 16px;
+left: 34px;
+top: 340px;
+
+
+
+/* convert-3d-cube */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/convert-3d-cube */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* convert-3d-cube */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 59.39%;
+right: 5.17%;
+top: 59.38%;
+bottom: 5.21%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 59.39%;
+top: 5.21%;
+bottom: 59.38%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 53.99%;
+right: 6.79%;
+top: 15.4%;
+bottom: 68.75%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 70.54%;
+right: 23.21%;
+top: 24.96%;
+bottom: 51.79%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 52.54%;
+right: 5.17%;
+top: 5.26%;
+bottom: 51.04%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 6.65%;
+right: 54.12%;
+top: 61.24%;
+bottom: 22.92%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 23.21%;
+right: 70.54%;
+top: 70.79%;
+bottom: 5.96%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 52.54%;
+top: 51.14%;
+bottom: 5.21%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Exchange */
+
+width: 52px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 19 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 10px 10px 10px 9px;
+gap: 77px;
+
+position: absolute;
+width: 219px;
+height: 36px;
+left: 25px;
+top: 380px;
+
+background: #F5F7F9;
+border-radius: 8px;
+
+
+/* Frame 18 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 20px;
+
+width: 107px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* status-up */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/status-up */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* status-up */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 25.54%;
+right: 68.21%;
+top: 63.88%;
+bottom: 21.25%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 46.88%;
+right: 46.88%;
+top: 55.21%;
+bottom: 21.25%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 68.21%;
+right: 25.54%;
+top: 46.58%;
+bottom: 21.25%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 25.53%;
+right: 25.54%;
+top: 21.25%;
+bottom: 45.08%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 56%;
+right: 25.54%;
+top: 21.25%;
+bottom: 60.33%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 5.21%;
+top: 5.21%;
+bottom: 5.21%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Stock & Fund */
+
+width: 70px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* arrow-up */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* vuesax/outline/arrow-up */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* arrow-up */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 13.89%;
+right: 13.89%;
+top: 30.02%;
+bottom: 34.17%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Frame 43 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 24px;
+
+position: absolute;
+width: 200px;
+height: 56px;
+left: 34px;
+top: 580px;
+
+
+
+/* Frame 20 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 109px;
+
+width: 200px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 13 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 21px;
+
+width: 75px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* wallet-3 */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/wallet-3 */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* wallet-3 */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 26.04%;
+right: 42.71%;
+top: 43.33%;
+bottom: 50.42%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 34.38%;
+top: 8.71%;
+bottom: 50.42%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 13.54%;
+top: 22.5%;
+bottom: 8.75%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 67.15%;
+right: 5.25%;
+top: 45.21%;
+bottom: 31.46%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+transform: rotate(-180deg);
+
+
+/* Wallets */
+
+width: 38px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* arrow-down */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* vuesax/outline/arrow-down */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* arrow-down */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 13.89%;
+right: 13.89%;
+top: 34.18%;
+bottom: 30%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Frame 12 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 19px;
+
+width: 71px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* trade */
+
+width: 16px;
+height: 16px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* vuesax/outline/trade */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* trade */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 34.38%;
+right: 5.21%;
+top: 5.21%;
+bottom: 34.38%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 34.38%;
+top: 34.38%;
+bottom: 5.21%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 69.41%;
+top: 5.21%;
+bottom: 69.42%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 69.41%;
+right: 5.21%;
+top: 69.41%;
+bottom: 5.21%;
+
+background: #7C7F84;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Crypto */
+
+width: 36px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #7C7F84;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 22 */
+
+position: absolute;
+width: 222px;
+height: 51px;
+left: 25px;
+top: 122px;
+
+background: #F6F8FA;
+border-radius: 8px;
+
+
+/* S&P 500 */
+
+position: absolute;
+width: 50px;
+height: 14px;
+left: 58px;
+top: 9px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+
+color: #000000;
+
+
+
+/* 4,549.78 */
+
+position: absolute;
+width: 44px;
+height: 14px;
+left: 58px;
+top: 27px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.075em;
+
+color: #000000;
+
+
+
+/* +0.30% */
+
+position: absolute;
+width: 42px;
+height: 14px;
+left: 164px;
+top: 9px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.01em;
+
+color: #41C3A9;
+
+
+
+/* +13.02 */
+
+position: absolute;
+width: 32px;
+height: 12px;
+left: 174px;
+top: 28px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 10px;
+line-height: 12px;
+/* identical to box height */
+text-align: right;
+letter-spacing: 0.035em;
+
+color: #41C3A9;
+
+
+
+/* Frame 2 */
+
+position: absolute;
+width: 38px;
+height: 38px;
+left: 13px;
+top: 6px;
+
+
+
+/* Ellipse 76 */
+
+position: absolute;
+width: 38px;
+height: 38px;
+left: 0px;
+top: 0px;
+
+background: #FFFFFF;
+
+
+/* S&P */
+
+position: absolute;
+width: 21px;
+height: 12px;
+left: 10px;
+top: 9px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 12px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #4B804F;
+
+
+
+/* 500 */
+
+position: absolute;
+width: 15px;
+height: 10px;
+left: 12px;
+top: 20px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 200;
+font-size: 8px;
+line-height: 10px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #4B804F;
+
+
+
+/* Frame 23 */
+
+position: absolute;
+width: 222px;
+height: 51px;
+left: 25px;
+top: 191px;
+
+background: #F6F8FA;
+border-radius: 8px;
+
+
+/* S&P 500 */
+
+position: absolute;
+width: 50px;
+height: 14px;
+left: 58px;
+top: 9px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+
+color: #000000;
+
+
+
+/* 4,549.78 */
+
+position: absolute;
+width: 44px;
+height: 14px;
+left: 58px;
+top: 27px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.075em;
+
+color: #000000;
+
+
+
+/* +0.30% */
+
+position: absolute;
+width: 42px;
+height: 14px;
+left: 164px;
+top: 9px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.01em;
+
+color: #41C3A9;
+
+
+
+/* +13.02 */
+
+position: absolute;
+width: 32px;
+height: 12px;
+left: 174px;
+top: 28px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 10px;
+line-height: 12px;
+/* identical to box height */
+text-align: right;
+letter-spacing: 0.035em;
+
+color: #41C3A9;
+
+
+
+/* Frame 2 */
+
+position: absolute;
+width: 38px;
+height: 38px;
+left: 13px;
+top: 6px;
+
+
+
+/* Ellipse 76 */
+
+position: absolute;
+width: 38px;
+height: 38px;
+left: 0px;
+top: 0px;
+
+background: #FFFFFF;
+
+
+/* S&P */
+
+position: absolute;
+width: 20px;
+height: 12px;
+left: 10px;
+top: 9px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 10px;
+line-height: 12px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #000000;
+
+
+
+/* 500 */
+
+position: absolute;
+width: 15px;
+height: 10px;
+left: 12px;
+top: 20px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 200;
+font-size: 8px;
+line-height: 10px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #000000;
+
+
+
+/* Line 27 */
+
+position: absolute;
+width: 132px;
+height: 0px;
+left: 40px;
+top: 433px;
+
+border: 1px solid #7C7F84;
+transform: rotate(90deg);
+
+
+/* Group 1000006749 */
+
+position: absolute;
+width: 40px;
+height: 40px;
+left: 25px;
+top: 26px;
+
+
+
+/* Ellipse 4 */
+
+position: absolute;
+width: 40px;
+height: 40px;
+left: 25px;
+top: 26px;
+
+background: #0000FF;
+
+
+/* TP */
+
+position: absolute;
+width: 19px;
+height: 20px;
+left: 35px;
+top: 36px;
+
+font-family: 'Inter';
+font-style: normal;
+font-weight: 700;
+font-size: 14px;
+line-height: 145%;
+/* or 20px */
+
+color: #FFFFFF;
+
+
+
+/* Stock Watchlists */
+
+position: absolute;
+width: 730px;
+height: 517px;
+left: 320px;
+top: 418px;
+
+background: #FFFFFF;
+border-radius: 20px;
+
+
+/* Frame 2 */
+
+position: absolute;
+width: 38px;
+height: 38px;
+left: 24px;
+top: 22px;
+
+
+
+/* Ellipse 76 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 38px;
+height: 38px;
+left: 0px;
+top: 0px;
+
+background: #FFFFFF;
+border: 1px solid rgba(221, 221, 221, 0.3);
+
+
+/* S&P */
+
+position: absolute;
+width: 20px;
+height: 12px;
+left: 10px;
+top: 9px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 10px;
+line-height: 12px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #000000;
+
+
+
+/* 500 */
+
+position: absolute;
+width: 15px;
+height: 10px;
+left: 12px;
+top: 20px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 200;
+font-size: 8px;
+line-height: 10px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #000000;
+
+
+
+/* Lines */
+
+position: absolute;
+width: 621px;
+height: 250px;
+left: 75px;
+top: 186px;
+
+opacity: 0.3;
+
+
+/* Line 19 */
+
+position: absolute;
+width: 621px;
+height: 0px;
+left: 75px;
+top: 436px;
+
+border: 1px solid rgba(174, 174, 174, 0.5);
+
+
+/* Line 20 */
+
+position: absolute;
+width: 621px;
+height: 0px;
+left: 75px;
+top: 386px;
+
+border: 1px solid rgba(174, 174, 174, 0.5);
+
+
+/* Line 21 */
+
+position: absolute;
+width: 621px;
+height: 0px;
+left: 75px;
+top: 336px;
+
+border: 1px solid rgba(174, 174, 174, 0.5);
+
+
+/* Line 22 */
+
+position: absolute;
+width: 621px;
+height: 0px;
+left: 75px;
+top: 286px;
+
+border: 1px solid rgba(174, 174, 174, 0.5);
+
+
+/* Line 23 */
+
+position: absolute;
+width: 621px;
+height: 0px;
+left: 75px;
+top: 236px;
+
+border: 1px solid rgba(174, 174, 174, 0.5);
+
+
+/* Line 24 */
+
+position: absolute;
+width: 621px;
+height: 0px;
+left: 75px;
+top: 186px;
+
+border: 1px solid rgba(174, 174, 174, 0.5);
+
+
+/* Vector 411 */
+
+position: absolute;
+width: 620.5px;
+height: 253.5px;
+left: 75px;
+top: 184px;
+
+border: 2px solid #41C3A9;
+
+
+/* Vector 412 */
+
+position: absolute;
+width: 621.5px;
+height: 256px;
+left: 74px;
+top: 185px;
+
+background: linear-gradient(180deg, rgba(65, 195, 169, 0.6) 0%, rgba(65, 195, 169, 0) 100%);
+opacity: 0.5;
+
+
+/* S&P 500 */
+
+position: absolute;
+width: 74px;
+height: 21px;
+left: 70px;
+top: 31px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 18px;
+line-height: 21px;
+
+color: #000000;
+
+
+
+/* 4,566.48 */
+
+position: absolute;
+width: 100px;
+height: 29px;
+left: 24px;
+top: 82px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 24px;
+line-height: 29px;
+/* identical to box height */
+letter-spacing: -0.04em;
+
+color: #000000;
+
+
+
+/* Oct 2023 */
+
+position: absolute;
+width: 57px;
+height: 14px;
+left: 470px;
+top: 472px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+
+/* Nov 2023 */
+
+position: absolute;
+width: 58px;
+height: 14px;
+left: 597px;
+top: 472px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #999898;
+
+
+
+/* Sep 2023 */
+
+position: absolute;
+width: 58px;
+height: 14px;
+left: 342px;
+top: 472px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #999898;
+
+
+
+/* Oct 25, 5:26:38PM UTC-4 . INDEXSP . Disclaimer */
+
+position: absolute;
+width: 287px;
+height: 14px;
+left: 24px;
+top: 124px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+
+color: #999898;
+
+
+
+/* Frame 7 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 14px 16px;
+gap: 8px;
+
+position: absolute;
+width: 136px;
+height: 71px;
+left: 371px;
+top: 270px;
+
+background: rgba(122, 122, 122, 0.7);
+border-radius: 12px;
+
+
+/* Oct 25, 5:26:38PM */
+
+width: 104px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.035em;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 4,487.90 */
+
+width: 77px;
+height: 21px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 18px;
+line-height: 21px;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 3 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 8px;
+gap: 10px;
+
+position: absolute;
+width: 63px;
+height: 30px;
+left: 136px;
+top: 81px;
+
+background: #EEFBF5;
+border-radius: 8px;
+
+
+/* +1.66% */
+
+width: 47px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #5CCDB3;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Aug 2023 */
+
+position: absolute;
+width: 59px;
+height: 14px;
+left: 213px;
+top: 472px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #999898;
+
+
+
+/* Jul 2023 */
+
+position: absolute;
+width: 53px;
+height: 14px;
+left: 90px;
+top: 472px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #999898;
+
+
+
+/* 4,100 */
+
+position: absolute;
+width: 32px;
+height: 17px;
+left: 24px;
+top: 427px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.115em;
+
+color: rgba(18, 18, 18, 0.7);
+
+
+
+/* 4,200 */
+
+position: absolute;
+width: 34px;
+height: 17px;
+left: 24px;
+top: 378px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.115em;
+
+color: rgba(18, 18, 18, 0.7);
+
+
+
+/* 4,300 */
+
+position: absolute;
+width: 34px;
+height: 17px;
+left: 24px;
+top: 328px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.115em;
+
+color: rgba(18, 18, 18, 0.7);
+
+
+
+/* 4,400 */
+
+position: absolute;
+width: 34px;
+height: 17px;
+left: 24px;
+top: 278px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.115em;
+
+color: rgba(18, 18, 18, 0.7);
+
+
+
+/* 4,500 */
+
+position: absolute;
+width: 34px;
+height: 17px;
+left: 24px;
+top: 228px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.115em;
+
+color: rgba(18, 18, 18, 0.7);
+
+
+
+/* 4,600 */
+
+position: absolute;
+width: 34px;
+height: 17px;
+left: 24px;
+top: 178px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 500;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.115em;
+
+color: rgba(18, 18, 18, 0.7);
+
+
+
+/* Frame 6 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 6px 16px;
+gap: 22px;
+
+position: absolute;
+width: 294px;
+height: 34px;
+left: 402px;
+top: 22px;
+
+background: #F4F5F9;
+border-radius: 8px;
+
+
+/* 1d */
+
+width: 13px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 5d */
+
+width: 15px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* 1m */
+
+width: 16px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+
+/* Frame 5 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+padding: 8px;
+gap: 10px;
+
+width: 34px;
+height: 22px;
+
+background: #FFFFFF;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+
+/* 6m */
+
+width: 18px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 1y */
+
+width: 13px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+flex-grow: 0;
+
+
+/* 5d */
+
+width: 15px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+flex-grow: 0;
+
+
+/* Max */
+
+width: 24px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+flex-grow: 0;
+
+
+/* Dash Highlights */
+
+position: absolute;
+width: 627px;
+height: 250px;
+left: 69px;
+top: 185px;
+
+
+
+/* Line 25 */
+
+position: absolute;
+width: 250px;
+height: 0px;
+left: 507px;
+top: 185px;
+
+opacity: 0.5;
+border: 1px dashed rgba(174, 174, 174, 0.5);
+transform: rotate(90deg);
+
+
+/* Line 26 */
+
+position: absolute;
+width: 627px;
+height: 0px;
+left: 69px;
+top: 258px;
+
+opacity: 0.5;
+border: 1px dashed rgba(174, 174, 174, 0.5);
+
+
+/* Ellipse 77 */
+
+position: absolute;
+width: 10px;
+height: 10px;
+left: 502px;
+top: 253px;
+
+background: #43C0A7;
+border: 4px solid #FFFFFF;
+
+
+/* Market Cap */
+
+position: absolute;
+width: 302px;
+height: 102px;
+left: 1098px;
+top: 833px;
+
+background: #FFFFFF;
+border-radius: 20px;
+
+
+/* Frame 24 */
+
+position: absolute;
+width: 54px;
+height: 54px;
+left: 22px;
+top: 24px;
+
+
+
+/* Ellipse 79 */
+
+position: absolute;
+width: 54px;
+height: 54px;
+left: 0px;
+top: 0px;
+
+background: #EEFBF5;
+
+
+/* chart-2 */
+
+position: absolute;
+width: 20px;
+height: 20px;
+left: 17px;
+top: 17px;
+
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* vuesax/bold/chart-2 */
+
+position: absolute;
+width: 20px;
+height: 20px;
+left: 0px;
+top: 0px;
+
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* chart-2 */
+
+position: absolute;
+width: 20px;
+height: 20px;
+left: 0px;
+top: 0px;
+
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Vector */
+
+position: absolute;
+left: 8.37%;
+right: 8.33%;
+top: 8.33%;
+bottom: 8.33%;
+
+background: #41C3A9;
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+transform: matrix(1, 0, 0, -1, 0, 0);
+
+
+/* Market Cap */
+
+position: absolute;
+width: 74px;
+height: 17px;
+left: 88px;
+top: 29px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: -0.015em;
+
+color: #A5AEBF;
+
+
+
+/* $40.3 T */
+
+position: absolute;
+width: 64px;
+height: 19px;
+left: 88px;
+top: 53px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+letter-spacing: 0.01em;
+
+color: #000000;
+
+
+
+/* Charts */
+
+position: absolute;
+width: 82px;
+height: 51px;
+left: 194px;
+top: 23px;
+
+
+
+/* Rectangle 266 */
+
+position: absolute;
+width: 10px;
+height: 40px;
+left: 194px;
+top: 34px;
+
+background: #EAECF0;
+border-radius: 20px 20px 0px 0px;
+
+
+/* Rectangle 267 */
+
+position: absolute;
+width: 10px;
+height: 24px;
+left: 212px;
+top: 50px;
+
+background: #EAECF0;
+border-radius: 20px 20px 0px 0px;
+
+
+/* Rectangle 268 */
+
+position: absolute;
+width: 10px;
+height: 51px;
+left: 230px;
+top: 23px;
+
+background: #EAECF0;
+border-radius: 20px 20px 0px 0px;
+
+
+/* Rectangle 269 */
+
+position: absolute;
+width: 10px;
+height: 20px;
+left: 248px;
+top: 54px;
+
+background: #EAECF0;
+border-radius: 20px 20px 0px 0px;
+
+
+/* Rectangle 270 */
+
+position: absolute;
+width: 10px;
+height: 45px;
+left: 266px;
+top: 29px;
+
+background: #EAECF0;
+border-radius: 20px 20px 0px 0px;
+
+
+/* Details */
+
+position: absolute;
+width: 302px;
+height: 375px;
+left: 1098px;
+top: 418px;
+
+background: #FFFFFF;
+border-radius: 20px;
+
+
+/* Frame 27 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 127px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 74px;
+
+
+
+/* Previous Close */
+
+width: 80px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 4,566.48 */
+
+width: 51px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 28 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 89px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 112px;
+
+
+
+/* Day Range */
+
+width: 59px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 4,533.94 - 4,598.53 */
+
+width: 110px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 29 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 87px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 150px;
+
+
+
+/* Year Range */
+
+width: 62px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 3,233.94 - 4,598.53 */
+
+width: 109px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 30 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 126px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 188px;
+
+
+
+/* Market Cap */
+
+width: 63px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* $40.3 T USD */
+
+width: 69px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 31 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 160px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 226px;
+
+
+
+/* Volume */
+
+width: 41px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 2,924,736 */
+
+width: 57px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 32 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 146px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 264px;
+
+
+
+/* Dividend Yield */
+
+width: 78px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 1.43% */
+
+width: 34px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 33 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 178px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 302px;
+
+
+
+/* P/E Ratio */
+
+width: 49px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* 31.08 */
+
+width: 31px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 34 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 142px;
+
+position: absolute;
+width: 258px;
+height: 14px;
+left: 22px;
+top: 340px;
+
+
+
+/* Previous Close */
+
+width: 80px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 400;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: -0.025em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* INDEX */
+
+width: 36px;
+height: 14px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 35 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 116px;
+
+position: absolute;
+width: 259px;
+height: 31px;
+left: 22px;
+top: 18px;
+
+
+
+/* S&P 500 */
+
+width: 56px;
+height: 17px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 700;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+text-align: right;
+letter-spacing: -0.065em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Frame 26 */
+
+width: 87px;
+height: 31px;
+
+background: #F4F5F9;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* 24 h */
+
+position: absolute;
+width: 25px;
+height: 14px;
+left: 35px;
+top: 8px;
+
+font-family: 'SF Pro Text';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+text-align: right;
+letter-spacing: -0.045em;
+
+color: #000000;
+
+
+
+/* clock */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 11px;
+top: 7px;
+
+
+
+/* vuesax/linear/clock */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* clock */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 8.33%;
+right: 8.33%;
+top: 8.33%;
+bottom: 8.33%;
+
+border: 1.5px solid #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 48.46%;
+right: 34.54%;
+top: 31.29%;
+bottom: 36.75%;
+
+border: 1.5px solid #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* arrow-down */
+
+position: absolute;
+width: 8px;
+height: 8px;
+left: 68px;
+top: 11px;
+
+
+
+/* vuesax/outline/arrow-down */
+
+position: absolute;
+width: 8px;
+height: 8px;
+left: 0px;
+top: 0px;
+
+
+
+/* arrow-down */
+
+position: absolute;
+width: 8px;
+height: 8px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 13.89%;
+right: 13.89%;
+top: 34.18%;
+bottom: 30%;
+
+background: #292D32;
+border: 1px solid #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Frame 10 */
+
+position: absolute;
+width: 1080px;
+height: 172px;
+left: 320px;
+top: 177px;
+
+background: #FFFFFF;
+border-radius: 20px;
+
+
+/* Portfolio Card */
+
+position: absolute;
+width: 247px;
+height: 140px;
+left: 18px;
+top: 16px;
+
+background: #FAFBFC;
+border-radius: 12px;
+
+
+/* 15,215.70 */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 20px;
+top: 99px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Portfolio */
+
+position: absolute;
+width: 55px;
+height: 17px;
+left: 20px;
+top: 77px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Line Graph */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+
+
+/* Vector 412 */
+
+position: absolute;
+width: 99.5px;
+height: 30px;
+left: 128px;
+top: 80px;
+
+border: 1px solid #9ADED1;
+
+
+/* Vector 413 */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+background: linear-gradient(180deg, rgba(78, 199, 175, 0.7) 0%, rgba(78, 199, 175, 0) 100%);
+
+
+/* Rectangle 265 */
+
+position: absolute;
+width: 98px;
+height: 30px;
+left: 17px;
+top: 18px;
+
+background: #000000;
+border-radius: 20px;
+
+
+/* Frame 9 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+position: absolute;
+width: 75px;
+height: 16px;
+left: 28px;
+top: 25px;
+
+
+
+/* apple */
+
+width: 14px;
+height: 16px;
+
+background: #FFFFFF;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Apple, Inc */
+
+width: 55px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 8 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-end;
+padding: 0px;
+gap: 4px;
+
+position: absolute;
+width: 43px;
+height: 32px;
+left: 185px;
+top: 19px;
+
+
+
+/* AAPL */
+
+width: 31px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* +0.66% */
+
+width: 43px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #4EC7AF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Portfolio Card */
+
+position: absolute;
+width: 247px;
+height: 140px;
+left: 281px;
+top: 16px;
+
+background: #FAFBFC;
+border-radius: 12px;
+
+
+/* 15,215.70 */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 20px;
+top: 99px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Portfolio */
+
+position: absolute;
+width: 55px;
+height: 17px;
+left: 20px;
+top: 77px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Neg Line Graph */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+
+
+/* Vector 412 */
+
+position: absolute;
+width: 99.5px;
+height: 30px;
+left: 128px;
+top: 80px;
+
+border: 1px solid #F9896B;
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Vector 413 */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+background: linear-gradient(180deg, #EC7080 0%, rgba(236, 112, 128, 0) 100%);
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Rectangle 265 */
+
+position: absolute;
+width: 98px;
+height: 30px;
+left: 17px;
+top: 18px;
+
+background: #000000;
+border-radius: 20px;
+
+
+/* Frame 9 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+position: absolute;
+width: 75px;
+height: 16px;
+left: 28px;
+top: 25px;
+
+
+
+/* apple */
+
+width: 14px;
+height: 16px;
+
+background: #FFFFFF;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Apple, Inc */
+
+width: 55px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 8 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-end;
+padding: 0px;
+gap: 4px;
+
+position: absolute;
+width: 43px;
+height: 32px;
+left: 185px;
+top: 19px;
+
+
+
+/* AAPL */
+
+width: 31px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* +0.66% */
+
+width: 43px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #4EC7AF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Portfolio Card */
+
+position: absolute;
+width: 247px;
+height: 140px;
+left: 544px;
+top: 16px;
+
+background: #FAFBFC;
+border-radius: 12px;
+
+
+/* 15,215.70 */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 20px;
+top: 99px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Portfolio */
+
+position: absolute;
+width: 55px;
+height: 17px;
+left: 20px;
+top: 77px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Vector 412 */
+
+position: absolute;
+width: 99.5px;
+height: 30px;
+left: 128px;
+top: 80px;
+
+border: 1px solid #9ADED1;
+
+
+/* Vector 413 */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+background: linear-gradient(180deg, rgba(78, 199, 175, 0.7) 0%, rgba(78, 199, 175, 0) 100%);
+
+
+/* Rectangle 265 */
+
+position: absolute;
+width: 98px;
+height: 30px;
+left: 17px;
+top: 18px;
+
+background: #000000;
+border-radius: 20px;
+
+
+/* Frame 9 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+position: absolute;
+width: 75px;
+height: 16px;
+left: 28px;
+top: 25px;
+
+
+
+/* apple */
+
+width: 14px;
+height: 16px;
+
+background: #FFFFFF;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Apple, Inc */
+
+width: 55px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 8 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-end;
+padding: 0px;
+gap: 4px;
+
+position: absolute;
+width: 43px;
+height: 32px;
+left: 185px;
+top: 19px;
+
+
+
+/* AAPL */
+
+width: 31px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* +0.66% */
+
+width: 43px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #4EC7AF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Portfolio Card */
+
+position: absolute;
+width: 247px;
+height: 140px;
+left: 807px;
+top: 16px;
+
+background: #FAFBFC;
+border-radius: 12px;
+
+
+/* 15,215.70 */
+
+position: absolute;
+width: 73px;
+height: 19px;
+left: 20px;
+top: 99px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 16px;
+line-height: 19px;
+/* identical to box height */
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Portfolio */
+
+position: absolute;
+width: 55px;
+height: 17px;
+left: 20px;
+top: 77px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+
+/* Neg Line Graph */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+
+
+/* Vector 412 */
+
+position: absolute;
+width: 99.5px;
+height: 30px;
+left: 128px;
+top: 80px;
+
+border: 1px solid #F9896B;
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Vector 413 */
+
+position: absolute;
+width: 99.5px;
+height: 32.5px;
+left: 128px;
+top: 80px;
+
+background: linear-gradient(180deg, #EC7080 0%, rgba(236, 112, 128, 0) 100%);
+transform: matrix(-1, 0, 0, 1, 0, 0);
+
+
+/* Rectangle 265 */
+
+position: absolute;
+width: 98px;
+height: 30px;
+left: 17px;
+top: 18px;
+
+background: #000000;
+border-radius: 20px;
+
+
+/* Frame 9 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+position: absolute;
+width: 75px;
+height: 16px;
+left: 28px;
+top: 25px;
+
+
+
+/* apple */
+
+width: 14px;
+height: 16px;
+
+background: #FFFFFF;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Apple, Inc */
+
+width: 55px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #FFFFFF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Frame 8 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-end;
+padding: 0px;
+gap: 4px;
+
+position: absolute;
+width: 43px;
+height: 32px;
+left: 185px;
+top: 19px;
+
+
+
+/* AAPL */
+
+width: 31px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 600;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: rgba(18, 18, 18, 0.9);
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* +0.66% */
+
+width: 43px;
+height: 14px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 14px;
+letter-spacing: 0.02em;
+
+color: #4EC7AF;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Side Scroll */
+
+position: absolute;
+width: 46px;
+height: 46px;
+left: 1031px;
+top: 60px;
+
+
+
+/* Ellipse 78 */
+
+box-sizing: border-box;
+
+position: absolute;
+width: 46px;
+height: 46px;
+left: 0px;
+top: 0px;
+
+background: #FFFFFF;
+border: 1px solid #DADADA;
+
+
+/* arrow-right */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 15px;
+top: 15px;
+
+
+
+/* vuesax/outline/arrow-right */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: calc(50% - 16px/2);
+top: calc(50% - 16px/2);
+
+
+
+/* arrow-right */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 34.01%;
+right: 30.17%;
+top: 13.89%;
+bottom: 13.88%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Frame 39 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 575px;
+
+position: absolute;
+width: 729.62px;
+height: 21px;
+left: 320px;
+top: 381px;
+
+
+
+/* Stock Watchlists */
+
+width: 142px;
+height: 21px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 18px;
+line-height: 21px;
+letter-spacing: 0.015em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Dots */
+
+width: 12.62px;
+height: 2.62px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Vector */
+
+position: absolute;
+left: 98.96%;
+right: 0.69%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 98.27%;
+right: 1.37%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 99.64%;
+right: 0%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Frame 40 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 230px;
+
+position: absolute;
+width: 301.62px;
+height: 21px;
+left: 1098px;
+top: 381px;
+
+
+
+/* Details */
+
+width: 59px;
+height: 21px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 18px;
+line-height: 21px;
+letter-spacing: 0.015em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Dots */
+
+width: 12.62px;
+height: 2.62px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Vector */
+
+position: absolute;
+left: 97.47%;
+right: 1.66%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 95.82%;
+right: 3.32%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 99.13%;
+right: 0%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Frame 41 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 898px;
+
+position: absolute;
+width: 1077.62px;
+height: 21px;
+left: 320px;
+top: 140px;
+
+
+
+/* Your Stock Portfolio */
+
+width: 167px;
+height: 21px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 700;
+font-size: 18px;
+line-height: 21px;
+letter-spacing: 0.015em;
+
+color: #000000;
+
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+
+/* Dots */
+
+width: 12.62px;
+height: 2.62px;
+
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+
+/* Vector */
+
+position: absolute;
+left: 99.29%;
+right: 0.46%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 98.83%;
+right: 0.93%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Vector */
+
+position: absolute;
+left: 99.76%;
+right: 0%;
+top: 43.76%;
+bottom: 43.76%;
+
+background: #292D32;
+
+
+/* Search bar & notifications */
+
+position: absolute;
+width: 1168px;
+height: 71px;
+left: 272px;
+top: 0px;
+
+background: #FFFFFF;
+border-radius: 0px 20px 0px 0px;
+
+
+/* Frame 38 */
+
+position: absolute;
+width: 359px;
+height: 45px;
+left: 39px;
+top: 14px;
+
+background: #FAFBFC;
+border-radius: 8px;
+
+
+/* search-normal */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 21px;
+top: 14px;
+
+
+
+/* vuesax/outline/search-normal */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* search-normal */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 5.21%;
+right: 9.37%;
+top: 5.21%;
+bottom: 9.37%;
+
+background: #97A1B6;
+
+
+/* Vector */
+
+position: absolute;
+left: 80.22%;
+right: 5.22%;
+top: 80.22%;
+bottom: 5.21%;
+
+background: #97A1B6;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+
+
+/* Search for stocks & more */
+
+position: absolute;
+width: 152px;
+height: 17px;
+left: 51px;
+top: 15px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: #B4BBCB;
+
+
+
+/* Barnabas Inyangsam */
+
+position: absolute;
+width: 128px;
+height: 17px;
+left: 996px;
+top: 18px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: #000000;
+
+
+
+/* barnabas@invest.com */
+
+position: absolute;
+width: 136px;
+height: 17px;
+left: 996px;
+top: 39px;
+
+font-family: 'SF Pro Display';
+font-style: normal;
+font-weight: 400;
+font-size: 14px;
+line-height: 17px;
+/* identical to box height */
+letter-spacing: 0.02em;
+
+color: rgba(41, 45, 50, 0.7);
+
+
+
+/* Ellipse 81 */
+
+position: absolute;
+width: 40px;
+height: 40px;
+left: 946px;
+top: 19px;
+
+background: url(.png), #EBF9F3;
+
+
+/* Ellipse 82 */
+
+position: absolute;
+width: 40px;
+height: 40px;
+left: 890px;
+top: 19px;
+
+background: #F4F5F9;
+
+
+/* notification */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 902px;
+top: 31px;
+
+
+
+/* vuesax/bold/notification */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* notification */
+
+position: absolute;
+width: 16px;
+height: 16px;
+left: 0px;
+top: 0px;
+
+
+
+/* Vector */
+
+position: absolute;
+left: 17.96%;
+right: 17.94%;
+top: 8.33%;
+bottom: 20.83%;
+
+background: #9CA8BA;
+
+
+/* Vector */
+
+position: absolute;
+left: 38.25%;
+right: 38.21%;
+top: 83.33%;
+bottom: 8.33%;
+
+background: #9CA8BA;
+
+
+/* Vector */
+
+position: absolute;
+left: 0%;
+right: 0%;
+top: 0%;
+bottom: 0%;
+
+opacity: 0;
+transform: rotate(-180deg);
