@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 import asyncio
 
 from app.config import settings
@@ -27,7 +30,8 @@ from app.market_data.provider import YFinanceProvider
 from app.market_data.schemas import MarketQuote
 from app.research.router import router as research_router
 from app.briefing.router import router as briefing_router
-from app.schemas import ChatHealthResponse, ChatRequest
+from app.search.stocks_router import router as stocks_router
+from app.schemas import ChatHealthResponse, ChatRequest, ServiceStatus
 
 
 @asynccontextmanager
@@ -47,6 +51,7 @@ app.add_middleware(
 app.include_router(market_data_router)
 app.include_router(research_router)
 app.include_router(briefing_router)
+app.include_router(stocks_router, prefix="/api/search")
 
 
 
@@ -228,13 +233,81 @@ async def stream_chat_events(
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
+_health_cache: dict[str, Any] = {"status": "healthy", "checks": {}, "timestamp": 0.0}
+HEALTH_CACHE_TTL = 10.0
+
 
 @app.get("/health", response_model=ChatHealthResponse)
-def health() -> ChatHealthResponse:
+async def health(session: AsyncSession = Depends(get_session)) -> ChatHealthResponse:
+    now = time.time()
+    if now - _health_cache["timestamp"] < HEALTH_CACHE_TTL and _health_cache["checks"]:
+        return ChatHealthResponse(
+            status=_health_cache["status"],
+            user_id=settings.default_user_id,
+            runtime="chat",
+            checks=_health_cache["checks"]
+        )
+
+    checks = {}
+
+    # 1. Database
+    t0 = time.perf_counter()
+    try:
+        await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=2.0)
+        checks["database"] = ServiceStatus(ok=True, latency_ms=round((time.perf_counter()-t0)*1000, 2))
+    except Exception as e:
+        checks["database"] = ServiceStatus(ok=False, latency_ms=round((time.perf_counter()-t0)*1000, 2), message=str(e))
+
+    # 2. ChromaDB
+    t0 = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            res = await client.get(f"http://{settings.chroma_host}:{settings.chroma_port}/api/v1/heartbeat")
+            res.raise_for_status()
+            checks["chroma"] = ServiceStatus(ok=True, latency_ms=round((time.perf_counter()-t0)*1000, 2))
+    except Exception as e:
+        checks["chroma"] = ServiceStatus(ok=False, latency_ms=round((time.perf_counter()-t0)*1000, 2), message=str(e))
+
+    # 3. LLM Provider
+    t0 = time.perf_counter()
+    provider = settings.llm_provider.lower()
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            if provider == "groq":
+                if not settings.groq_api_key:
+                    raise ValueError("Groq API key not set")
+                res = await client.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {settings.groq_api_key}"})
+                res.raise_for_status()
+            elif provider == "ollama":
+                res = await client.get(f"{settings.ollama_base_url}/api/tags")
+                res.raise_for_status()
+            else:
+                raise ValueError("Unknown provider")
+            checks["llm_provider"] = ServiceStatus(ok=True, latency_ms=round((time.perf_counter()-t0)*1000, 2), provider=provider)
+    except Exception as e:
+        checks["llm_provider"] = ServiceStatus(ok=False, latency_ms=round((time.perf_counter()-t0)*1000, 2), provider=provider, message=str(e))
+
+    # Evaluate tri-state
+    is_db_ok = checks["database"].ok
+    is_llm_ok = checks["llm_provider"].ok
+    is_chroma_ok = checks["chroma"].ok
+
+    if not is_db_ok or not is_llm_ok:
+        status_code = "unhealthy"
+    elif not is_chroma_ok:
+        status_code = "degraded"
+    else:
+        status_code = "healthy"
+
+    _health_cache["status"] = status_code
+    _health_cache["checks"] = checks
+    _health_cache["timestamp"] = now
+
     return ChatHealthResponse(
-        status="ok",
+        status=status_code,
         user_id=settings.default_user_id,
         runtime="chat",
+        checks=checks
     )
 
 

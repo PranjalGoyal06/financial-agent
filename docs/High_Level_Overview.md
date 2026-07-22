@@ -27,7 +27,7 @@ dev/
 │   │   ├── agents/reactive/    # (reserved — agent logic lives in graph.py)
 │   │   ├── llm/                # LLM provider factory (Groq / Ollama)
 │   │   ├── market_data/        # Quotes, history, resolver, cache, REST router
-│   │   ├── search/             # Tavily web search client + cache
+│   │   ├── search/             # Tavily web search client, cache, local stock search router
 │   │   ├── portfolio/          # Portfolio query helpers + agent tools
 │   │   ├── quant/              # Quantitative metrics (returns, vol, Sharpe, …)
 │   │   ├── ta/                 # Technical analysis (SMA, EMA, RSI)
@@ -40,6 +40,7 @@ dev/
 │   ├── src/
 │   │   ├── main.tsx            # React entry point
 │   │   ├── App.tsx             # App shell, chat, sidebar, portfolio drawer
+│   │   ├── components/         # Reusable UI components (e.g., StockSearch.tsx)
 │   │   ├── PortfolioZone.tsx   # Portfolio dashboard tab
 │   │   ├── BriefingZone.tsx    # Morning briefing tab
 │   │   ├── features/research/  # Research orchestration graph viewer
@@ -102,6 +103,7 @@ dev/
 | `GET`    | `/tools/resolve-asset`        | Free-text → NSE/BSE ticker resolution *(market_data)* |
 | `GET`    | `/tools/quote`                | Cached stock price snapshot *(market_data)*            |
 | `GET`    | `/tools/historical-data`      | Cached OHLCV bars *(market_data)*                      |
+| `GET`    | `/api/search/stocks`          | Local CSV-based stock autocomplete search              |
 | `POST`   | `/research/trigger`           | Kick off async deep research run                      |
 | `GET`    | `/research/status/{run_id}`   | Poll research run status                              |
 | `GET`    | `/research/recommendations`   | Latest ticker recommendations from research           |
@@ -269,6 +271,7 @@ Key files:
 
 - [client.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/search/client.py) — Tavily API integration with DB-backed cache (20-min TTL, `snapshot_type="search_snapshot"`). Produces `EvidenceItem` objects with stable IDs (`news_<8-hex-sha256(url)>`).
 - [tools.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/search/tools.py) — `web_search_tool` for the agent.
+- [stocks_router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/search/stocks_router.py) — `GET /api/search/stocks` serving in-memory stock autocomplete from `data/stocks.json` for the frontend search bar.
 
 ### 6.3 Portfolio ([portfolio/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/portfolio/))
 
@@ -374,6 +377,7 @@ and SVG sparkline charts.
 | --------------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
 | **App**                     | [App.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/App.tsx) | Root shell, chat streaming, state management |
 | **PortfolioZone**           | [PortfolioZone.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/PortfolioZone.tsx) | Full portfolio dashboard with valued holdings |
+| **StockSearch**             | [StockSearch.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/components/StockSearch.tsx) | Premium stock search autocomplete with chat redirection |
 | **BriefingZone**            | [BriefingZone.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/BriefingZone.tsx) | Morning briefing: climate strip, action desk, news |
 | **ResearchLayout**          | [ResearchLayout.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/ResearchLayout.tsx) | Research run viewer with DAG graph |
 | **OrchestrationGraph**      | [OrchestrationGraph.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/components/OrchestrationGraph.tsx) | React Flow DAG of research pipeline execution |
@@ -392,6 +396,7 @@ and SVG sparkline charts.
 | Refresh live quotes      | REST        | `GET /portfolio/quotes`          |
 | Trigger deep research    | REST        | `POST /research/trigger`         |
 | Poll research status     | REST        | `GET /research/status/{run_id}`  |
+| Search stocks            | REST        | `GET /api/search/stocks`         |
 | View research artifact   | REST        | `GET /research/artifact/…`       |
 | Get recommendations      | REST        | `GET /research/recommendations`  |
 | Load morning briefing    | REST        | `GET /briefing/`                 |

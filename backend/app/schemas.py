@@ -15,7 +15,16 @@ class ChatRequest(BaseModel):
     )
 
 
+class ServiceStatus(BaseModel):
+    ok: bool
+    latency_ms: float | None = None
+    provider: str | None = None
+    last_success: str | None = None
+    message: str | None = None
+
+
 class ChatHealthResponse(BaseModel):
     status: str
     user_id: str
     runtime: str
+    checks: dict[str, ServiceStatus] = Field(default_factory=dict)

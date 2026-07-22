@@ -10,6 +10,7 @@ import { marked } from "marked";
 import { BriefingZone } from "./BriefingZone";
 import { PortfolioZone } from "./PortfolioZone";
 import { ResearchLayout } from "./features/research/ResearchLayout";
+import { StockSearch } from "./components/StockSearch";
 
 // ── Markdown ───────────────────────────────────────────────────────────────────
 
@@ -257,6 +258,7 @@ export function App() {
   const [input, setInput] = useState("");
   const [draftBlocks, setDraftBlocks] = useState<ContentBlock[]>([]);
   const [status, setStatus] = useState("Checking backend...");
+  const [healthData, setHealthData] = useState<any>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   
   // Portfolio state
@@ -284,11 +286,19 @@ export function App() {
         if (!r.ok) throw new Error(`Backend returned ${r.status}`);
         return r.json();
       })
-      .then((p: { runtime: string; user_id: string }) => {
-        setStatus(`Connected`);
+      .then((p: any) => {
+        setHealthData(p);
+        if (p.status === "healthy") setStatus("Connected");
+        else if (p.status === "degraded") setStatus("Degraded");
+        else setStatus("Unhealthy");
       })
       .catch((e: unknown) => {
-        setStatus(e instanceof Error ? e.message : "Backend unavailable");
+        const msg = e instanceof Error ? e.message : "Backend unavailable";
+        setStatus(msg);
+        setHealthData({
+          status: "error",
+          checks: { backend: { ok: false, message: msg } }
+        });
       });
   }, []);
 
@@ -601,8 +611,30 @@ export function App() {
         </form>
         
         <div className="sidebar__footer">
-          <div className={`status-dot ${status.startsWith("Connected") ? "status-dot--ok" : "status-dot--error"}`} />
-          <span className="sidebar__status-text">{status}</span>
+          <div className="service-status-container">
+            <div className={`status-dot ${
+              status === "Connected" ? "status-dot--ok" : 
+              status === "Degraded" ? "status-dot--degraded" : 
+              "status-dot--error"
+            }`} />
+            <span className="sidebar__status-text">{status}</span>
+            
+            {healthData && healthData.checks && Object.keys(healthData.checks).length > 0 && (
+              <div className="service-status-tooltip">
+                {Object.entries(healthData.checks).map(([key, info]: [string, any]) => (
+                  <div key={key} className="service-status-item">
+                    <div className="service-status-item-left">
+                      <div className={`status-dot ${info.ok ? "status-dot--ok" : "status-dot--error"}`} />
+                      <span className="service-status-item-name">{key.replace('_', ' ')}</span>
+                    </div>
+                    <span className="service-status-item-meta">
+                      {info.latency_ms ? `${info.latency_ms}ms` : info.message ? info.message : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -611,10 +643,12 @@ export function App() {
         
         {/* ── Top Header ── */}
         <header className="top-header">
-          <div className="search-bar">
-            <SearchIcon />
-            <span>Search for stocks & more</span>
-          </div>
+          <StockSearch 
+            onSelect={(symbol, name) => {
+              setActiveTab('chat');
+              handlePreFillChat(`Analyze ${name} (${symbol}), including recent news and financial health.`);
+            }}
+          />
           <div className="header-actions">
             <button 
               className="portfolio-toggle-btn" 
