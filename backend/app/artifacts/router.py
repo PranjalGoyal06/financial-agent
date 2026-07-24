@@ -80,6 +80,8 @@ async def upload_artifact(
         user_id=user_id,
     )
     
+    await session.commit()
+    
     return {
         "id": artifact.id,
         "title": artifact.title,
@@ -100,6 +102,7 @@ async def delete_artifact_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Artifact {artifact_id} not found."
         )
+    await session.commit()
 
 
 @router.patch("/{artifact_id}")
@@ -122,6 +125,8 @@ async def rename_artifact_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Artifact {artifact_id} not found."
         )
+        
+    await session.commit()
         
     return {
         "id": artifact.id,
