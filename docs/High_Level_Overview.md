@@ -212,26 +212,42 @@ Concurrent state updates use `Annotated[dict, merge_dict]` and
 ### 5.2 Pipeline Graph ([graph.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/graph.py))
 
 ```
-START → planner → collection → macro_synthesis → sector_synthesis
-      → ticker_synthesis → portfolio_synthesis → persist → END
+START → plan_macro_sector → collect_macro_sector → discover_screen 
+      → plan_tickers → collect_tickers_round1 → evidence_triage 
+      → collect_tickers_round2 → macro_synthesis → sector_synthesis 
+      → ticker_synthesis (5-step) → reconcile_with_prior 
+      → portfolio_synthesis → persist → END
 ```
 
-Seven nodes, executed sequentially. Intra-node parallelism (fan-out across
+Fourteen nodes, executed sequentially. Intra-node parallelism (fan-out across
 tickers and sectors) is handled with `asyncio.gather` inside each node.
 
 ### 5.3 Node Details ([nodes/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/nodes/))
 
-| Node                     | File              | What It Does                                                                                  |
-| ------------------------ | ----------------- | --------------------------------------------------------------------------------------------- |
-| **planner**              | `planner.py`      | Resolves user's watchlist (holdings ∪ watchlist) → tickers + sectors. Caches instrument metadata in the `instruments` table, falls back to yfinance. |
-| **collection**           | `collection.py`   | Parallel evidence gathering via `asyncio.gather`: Tavily macro/sector/ticker news, Chroma prior research retrieval, yfinance quotes + fundamentals, quant metrics (CAGR, Sharpe, max drawdown), TA indicators (RSI-14, SMA-50), portfolio return correlation matrix. |
-| **macro_synthesis**      | `synthesis.py`    | LLM structured output → `MacroSynthesis` (outlook, key drivers, analysis markdown). Citation validation against evidence pack. |
-| **sector_synthesis**     | `synthesis.py`    | Parallel LLM calls per sector → `SectorSynthesis` (outlook, drivers, analysis). Citation validation. |
-| **ticker_synthesis**     | `synthesis.py`    | Parallel LLM calls per ticker → `TickerSynthesis` (recommendation enum, confidence 0–100, target price, rationale, risk factors, bear case, "kill the company" risk). Receives sector context. |
-| **portfolio_synthesis**  | `synthesis.py`    | CIO-persona LLM → `PortfolioSynthesis` (allocation adjustments, top picks, risk aggregates). Receives all upstream context + correlation matrix. |
-| **persist**              | `persist.py`      | Writes all artifacts to PostgreSQL (`research_artifacts`) and indexes markdown in ChromaDB (`research_artifacts` collection). |
+| Node                     | File                | What It Does                                                                                  |
+| ------------------------ | ------------------- | --------------------------------------------------------------------------------------------- |
+| **plan_macro_sector**    | `planner.py`        | Resolves user's watchlist → initial sectors. Caches instrument metadata. |
+| **collect_macro_sector** | `collection.py`     | Gathers Tavily macro/sector news using LLM-generated search queries. |
+| **discover_screen**      | `discovery.py`      | Identifies off-watchlist candidates via Nifty 500 price screening and LLM macro/sector spillover extraction. Grades candidates. |
+| **plan_tickers**         | `planner.py`        | Merges watchlisted tickers + discovered tickers into a final ticker list and maps sectors. |
+| **collect_tickers_round1** | `collection.py`   | Parallel evidence gathering via Tavily, Chroma DB, yfinance, quant metrics, and TA indicators. |
+| **evidence_triage**      | `triage.py`         | Enforces `compute_evidence_sufficiency_score()` as a hard gate. Generates targeted follow-up queries using local LLMs. |
+| **collect_tickers_round2** | `collection.py`   | Executes follow-up Tavily queries from triage. |
+| **macro_synthesis**      | `synthesis.py`      | LLM structured output → `MacroSynthesis`. Citation validation against evidence pack. |
+| **sector_synthesis**     | `synthesis.py`      | Parallel LLM calls per sector → `SectorSynthesis`. Citation validation. |
+| **ticker_synthesis**     | `synthesis.py`      | 5-step pipeline: Draft (bear-first) → Critique (red-team) → Revise → Frontier Judgment (CIO override with Ollama Cloud fallback) → Return `TickerSynthesis`. |
+| **reconcile_with_prior** | `reconciliation.py` | Queries Chroma for most recent prior ticker artifact. LLM generates a short drift report (e.g., flipped recommendations) stored in state. |
+| **portfolio_synthesis**  | `synthesis.py`      | CIO-persona LLM → `PortfolioSynthesis`. Computes rolling correlation across tickers on the fly. Ingests drift reports. |
+| **persist**              | `persist.py`        | Writes all artifacts to PostgreSQL and indexes markdown in ChromaDB. |
+| **logger**               | `logger.py`         | System-level (Tier-1) JSONL logger writing detailed run events to `logs/research/{run_id}.jsonl`. |
 
-### 5.4 Prompt Templates ([prompts/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/prompts/))
+### 5.4 REST API Endpoints ([router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/router.py))
+
+- `POST /research/trigger` — Spawns async background research task.
+- `GET /research/status/{run_id}` — Returns status (`running`, `completed`, `failed`).
+- `GET /research/logs/{run_id}` — Returns Tier-1 system debug log events (supports `node` and `event_type` filtering).
+- `GET /research/recommendations` — Latest ticker recommendations.
+- `GET /research/artifact/{run_id}/{type}` — Fetch report & evidence pack.
 
 | File           | Persona                    | Key Requirements                                      |
 | -------------- | -------------------------- | ----------------------------------------------------- |

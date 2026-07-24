@@ -53,7 +53,7 @@ class TickerSynthesis(BaseModel):
 
     canonical_ticker: str
     recommendation: Literal[
-        "buy", "add", "hold", "reduce", "watch", "no_action", "insufficient_data"
+        "buy", "add", "hold", "reduce", "sell", "strong_sell", "watch", "no_action", "insufficient_data"
     ]
     confidence_score: int = Field(
         ge=0, le=100, description="Confidence in the recommendation (0-100)"
@@ -75,6 +75,24 @@ class TickerSynthesis(BaseModel):
     )
     analysis_markdown: str = Field(
         description="Detailed company-specific analysis (Markdown format) with [id] citations"
+    )
+    
+    # Provenance and status fields
+    source: Literal["watchlist", "discovered"] = Field(default="watchlist")
+    discovery_vector: str | None = Field(default=None)
+    discovery_reason: str | None = Field(default=None)
+    frontier_judgment_unavailable: bool = Field(default=False)
+
+
+class FrontierTickerSynthesis(TickerSynthesis):
+    """Output of the frontier CIO judgment step."""
+    
+    what_changed_and_why: str = Field(
+        description="Explicitly state what you changed from the analyst's revised thesis (recommendation, confidence, or neither) and why."
+    )
+    prior_reconciliation_note: str | None = Field(
+        default=None,
+        description="Explicitly state whether you maintain, upgrade, or downgrade vs. prior research and why, if applicable."
     )
 
 

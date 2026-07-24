@@ -277,6 +277,26 @@ def compute_correlation_matrix(
     return matrix
 
 
+def compute_rolling_correlation(
+    bars_dict: dict[str, list[HistoricalBar]],
+    window: int = 90,
+) -> dict[str, dict[str, float | None]]:
+    """Pairwise Pearson correlation of daily log returns over a rolling window.
+
+    Args:
+        bars_dict — {ticker: bars}
+        window — Number of recent bars to consider (default 90).
+
+    Returns:
+        {ticker_a: {ticker_b: corr}} over the last `window` trading dates.
+    """
+    # Slice the last `window` bars for each ticker and reuse the static matrix function
+    sliced_dict = {}
+    for ticker, bars in bars_dict.items():
+        sliced_dict[ticker] = bars[-window:] if len(bars) >= window else bars
+        
+    return compute_correlation_matrix(sliced_dict)
+
 def compute_all_metrics(bars: list[HistoricalBar]) -> dict:
     """Convenience wrapper: all P0 metrics from one bar series.
 

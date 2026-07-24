@@ -82,6 +82,7 @@ def get_chat_model(
             temperature=temperature,
             streaming=streaming,
             include_thoughts=True,
+            max_retries=3,
         )
 
     if resolved_provider == "ollama_cloud":
@@ -100,6 +101,7 @@ def get_chat_model(
             model=target_model,
             temperature=temperature,
             headers=headers if headers else None,
+            max_retries=3,
         )
 
     raise ValueError(
@@ -113,6 +115,8 @@ def get_structured_model(
     temperature: float = 0.0,
     provider: str | None = None,
     model: str | None = None,
+    fallback_provider: str | None = None,
+    fallback_model: str | None = None,
 ) -> Runnable[Any, T]:
     """Get a model configured to output structured objects matching the schema."""
     llm = get_chat_model(
@@ -121,4 +125,16 @@ def get_structured_model(
         provider=provider,
         model=model,
     )
-    return llm.with_structured_output(schema)
+    runnable = llm.with_structured_output(schema)
+    
+    if fallback_provider:
+        fallback_llm = get_chat_model(
+            temperature=temperature,
+            streaming=False,
+            provider=fallback_provider,
+            model=fallback_model,
+        )
+        fallback_runnable = fallback_llm.with_structured_output(schema)
+        runnable = runnable.with_fallbacks([fallback_runnable])
+        
+    return runnable

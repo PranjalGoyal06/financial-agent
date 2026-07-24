@@ -27,12 +27,16 @@ RUN_STATUS: dict[str, Literal["running", "completed", "failed"]] = {}
 _research_graph = build_research_graph().compile()
 
 
+from app.research.logger import get_run_logger, read_run_logs
+
 # ── Background Task Runner ────────────────────────────────────────────────────
 
 
 async def _run_research_graph(run_id: str, user_id: str) -> None:
     """Execute the compiled LangGraph workflow in the background."""
     RUN_STATUS[run_id] = "running"
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("workflow", "node_start", f"Starting background deep research run {run_id}")
     logger.info("Starting background deep research | run_id=%s user_id=%s", run_id, user_id)
     
     try:
@@ -54,9 +58,11 @@ async def _run_research_graph(run_id: str, user_id: str) -> None:
         }
         await _research_graph.ainvoke(initial_state)
         RUN_STATUS[run_id] = "completed"
+        run_logger.log_event("workflow", "node_complete", f"Background deep research run {run_id} completed successfully")
         logger.info("Background deep research completed successfully | run_id=%s", run_id)
     except Exception as exc:
         RUN_STATUS[run_id] = "failed"
+        run_logger.log_exception("workflow", exc, f"Workflow execution failed for run_id={run_id}")
         logger.exception("Background deep research run failed | run_id=%s: %s", run_id, exc)
 
 
@@ -88,8 +94,6 @@ async def get_run_status(run_id: str) -> dict[str, str]:
     current_status = RUN_STATUS.get(run_id)
     
     if current_status is None:
-        # Fall back: check if artifacts already exist in Postgres for this run_id
-        # (This handles server restarts where in-memory RUN_STATUS is lost)
         try:
             async with AsyncSessionLocal() as session:
                 stmt = select(Artifact.id).where(Artifact.source_ref_id == run_id).limit(1)
@@ -106,6 +110,27 @@ async def get_run_status(run_id: str) -> dict[str, str]:
     return {
         "run_id": run_id,
         "status": current_status,
+    }
+
+
+@router.get("/logs/{run_id}")
+async def get_run_logs(
+    run_id: str,
+    node: str | None = Query(default=None, description="Filter logs by node name"),
+    event_type: str | None = Query(default=None, description="Filter logs by event type"),
+) -> dict[str, Any]:
+    """Retrieve Tier-1 system-level debug logs for a research run."""
+    logs = read_run_logs(run_id)
+    
+    if node:
+        logs = [l for l in logs if l.get("node") == node]
+    if event_type:
+        logs = [l for l in logs if l.get("event_type") == event_type]
+
+    return {
+        "run_id": run_id,
+        "total_events": len(logs),
+        "logs": logs,
     }
 
 

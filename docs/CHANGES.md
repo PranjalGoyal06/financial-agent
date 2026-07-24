@@ -1,5 +1,15 @@
 # Changes
 
+### [2026-07-25] — Implemented Tier-1 System-Level Debug Logging
+- Built `ResearchRunLogger` (`backend/app/research/logger.py`) to record structured JSON Lines (`.jsonl`) events to `logs/research/{run_id}.jsonl`.
+- Instrumented key graph nodes (`discovery`, `triage`, `reconciliation`, `persist`, `workflow`) to capture LLM call traces, API traffic metrics, sufficiency gating scores, and exception tracebacks.
+- Added `GET /research/logs/{run_id}` REST endpoint allowing developer log inspection with filtering by `node` or `event_type`.
+### [2026-07-25] — Completed Deep Research Orchestration Refactor
+- Completely refactored the LangGraph pipeline from 7 nodes to 14 nodes, enabling dynamic discovery of off-watchlist stocks, multi-round evidence gathering, sufficiency gating, and robust synthesis.
+- Implemented a 5-step `ticker_synthesis` pipeline including Draft, Critique, Revision, and Frontier Judgment (with fallback).
+- Added `discovery.py` to identify candidates via a Nifty 500 local screener and LLM spillover extraction, and `reconciliation.py` to generate drift reports against prior Chroma artifacts.
+- Upgraded the `collection.py` node to use LLMs for targeted query generation rather than static f-strings.
+- Resolves the structural limitations of the single-pass architecture and massively improves the depth, accuracy, and utility of the research output.
 ### [2026-07-24] — Implemented `/create-artifact` slash command subgraph
 - Built `create_artifact_graph` to handle the `/create-artifact` command, incorporating intent parsing to decide if fresh market data grounding is needed.
 - Integrated the command into `main.py` routing, enabling the unified SSE streaming protocol to emit conversational filler and `card_render` events for artifacts.

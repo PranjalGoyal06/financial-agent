@@ -31,6 +31,8 @@ type ActionCard = {
   bear_case_snippet: string;
   change_context: string | null;
   run_id: string;
+  is_discovery?: boolean;
+  is_drift?: boolean;
 };
 
 type ActionDeskData = {
@@ -60,13 +62,14 @@ type BriefingResponse = {
 
 interface BriefingZoneProps {
   onPreFillChat: (query: string) => void;
+  onNavigateToAsset: (ticker: string) => void;
 }
 
 function formatAmount(val: number): string {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(val);
 }
 
-export function BriefingZone({ onPreFillChat }: BriefingZoneProps) {
+export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneProps) {
   const [data, setData] = useState<BriefingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,8 +99,8 @@ export function BriefingZone({ onPreFillChat }: BriefingZoneProps) {
 
   const { greeting, climate, action_desk, no_action, top_news } = data;
 
-  const handleCardClick = (ticker: string, recommendation: string) => {
-    onPreFillChat(`Why is ${ticker} flagged as ${recommendation}?`);
+  const handleCardClick = (ticker: string) => {
+    onNavigateToAsset(ticker);
   };
 
   return (
@@ -175,10 +178,21 @@ export function BriefingZone({ onPreFillChat }: BriefingZoneProps) {
               <div
                 key={i}
                 className="action-card"
-                onClick={() => handleCardClick(card.ticker, card.recommendation)}
+                onClick={() => handleCardClick(card.ticker)}
               >
-                <div className="action-card-header">
+                <div className="action-card-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span className="action-ticker">{card.ticker}</span>
+                  {card.is_discovery && (
+                    <span style={{ fontSize: '10px', background: 'var(--blue)', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, letterSpacing: '0.5px' }}>
+                      🔍 NEW
+                    </span>
+                  )}
+                  {card.is_drift && (
+                    <span style={{ fontSize: '10px', background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid var(--red)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, letterSpacing: '0.5px' }}>
+                      ⚠ DRIFT
+                    </span>
+                  )}
+                  <div style={{ flex: 1 }} />
                   <span className={`action-badge rec-${card.recommendation.toLowerCase().replace('_', '-')}`}>
                     {card.recommendation.toUpperCase()} · {card.confidence_tier} conf
                   </span>

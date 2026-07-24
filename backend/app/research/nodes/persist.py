@@ -9,14 +9,16 @@ from app.research.store import save_research_artifact
 logger = logging.getLogger(__name__)
 
 
-async def persist_node(state: ResearchState) -> dict:
-    """Persist Node: Writes all synthesis products and collected evidence to PG & Chroma.
+from app.research.logger import get_run_logger
 
-    Shares a single run_id across all artifacts so they can be grouped in the UI
-    and retrieved in a single query.
-    """
+async def persist_node(state: ResearchState) -> dict:
+    """Persist Node: Writes all synthesis products and collected evidence to PG & Chroma."""
     run_id = state.get("run_id") or "test_run"
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("persist", "node_start", f"Persist Node starting | run_id={run_id}")
     logger.info("Persist Node starting | run_id=%s", run_id)
+    
+    saved_counts = {"macro": 0, "sector": 0, "ticker": 0, "portfolio": 0}
 
     async with AsyncSessionLocal() as session:
         async with session.begin():
@@ -32,6 +34,7 @@ async def persist_node(state: ResearchState) -> dict:
                     content_markdown=macro.analysis_markdown,
                     evidence_pack_json=macro_pack.model_dump_json(),
                 )
+                saved_counts["macro"] += 1
 
             # ── 2. Persist Sector Syntheses ───────────────────────────────────
             sector_dict = state.get("sector_synthesis") or {}
@@ -47,6 +50,7 @@ async def persist_node(state: ResearchState) -> dict:
                         content_markdown=sector_data.analysis_markdown,
                         evidence_pack_json=pack.model_dump_json(),
                     )
+                    saved_counts["sector"] += 1
 
             # ── 3. Persist Ticker Syntheses ───────────────────────────────────
             ticker_dict = state.get("ticker_synthesis") or {}
@@ -64,6 +68,7 @@ async def persist_node(state: ResearchState) -> dict:
                         recommendation=ticker_data.recommendation,
                         confidence_score=ticker_data.confidence_score,
                     )
+                    saved_counts["ticker"] += 1
 
             # ── 4. Persist Portfolio Synthesis ────────────────────────────────
             portfolio = state.get("portfolio_synthesis")
@@ -77,6 +82,8 @@ async def persist_node(state: ResearchState) -> dict:
                     content_markdown=portfolio.analysis_markdown,
                     evidence_pack_json=portfolio_pack.model_dump_json(),
                 )
+                saved_counts["portfolio"] += 1
 
+    run_logger.log_event("persist", "node_complete", f"Persist Node complete | saved_counts={saved_counts}", {"saved_counts": saved_counts})
     logger.info("Persist Node complete | Successfully saved all artifacts for run_id=%s", run_id)
     return {}

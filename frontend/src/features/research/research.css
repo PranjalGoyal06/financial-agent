@@ -1,4 +1,4 @@
-/* Research Layout */
+/* ... existing layout rules ... */
 .research-layout {
   display: flex;
   height: 100%;
@@ -9,7 +9,7 @@
   overflow: hidden;
 }
 
-/* Sidebar */
+/* Unified Sidebar */
 .research-sidebar {
   width: 260px;
   background: var(--surface);
@@ -178,7 +178,7 @@
   min-width: 200px;
   cursor: pointer;
   background: var(--surface);
-  transition: box-shadow 0.2s, border-color 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
 }
 
 .graph-node:hover {
@@ -192,7 +192,7 @@
 
 .graph-node--running {
   border-color: var(--blue);
-  background: #F0F4FF; /* light blue bg */
+  background: #F0F4FF;
   color: var(--blue);
   box-shadow: 0 0 0 2px rgba(0,0,255,0.1);
 }
@@ -213,6 +213,32 @@
   border-color: #F59E0B;
   background: #FFFBEB;
   color: #B45309;
+}
+
+/* Structural Modifiers */
+.graph-node--ghosted {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.graph-node--informational {
+  border-style: dashed;
+  border-color: var(--muted-light);
+  background: transparent;
+}
+
+/* LLM Tier Modifiers */
+.graph-node--tier-local {
+  /* Subtle local model style */
+  border-left: 3px solid var(--muted);
+}
+
+.graph-node--tier-frontier {
+  /* Distinct frontier model style */
+  border: 2px solid #9C27B0; /* Purple accent */
+  background: #F3E5F5;
+  color: #6A1B9A;
+  box-shadow: 0 2px 10px rgba(156, 39, 176, 0.15);
 }
 
 .graph-node__icon {
@@ -238,9 +264,12 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-/* Panels (Drawer & Node Details) */
+/* Panels */
 .research-panel {
   position: absolute;
   top: 0;
@@ -360,7 +389,7 @@
 
 /* Node Details Specific */
 .node-logs {
-  background: #1E1E1E; /* Keep logs dark like a terminal */
+  background: #1E1E1E;
   border-radius: 6px;
   padding: 12px;
   font-family: var(--font-mono);

@@ -89,14 +89,15 @@ async def _resolve_ticker_sector(ticker: str) -> tuple[str, str]:
     return name, sector
 
 
-async def plan_node(state: ResearchState) -> dict:
-    """Planner Node: Resolves watchlist tickers and maps them to sectors.
+async def plan_macro_sector(state: ResearchState) -> dict:
+    """Planner Node 1: Resolves watchlist tickers and maps them to sectors.
 
     Retrieves the user's watchlist (holdings + watchlists), resolves the sector
-    and metadata for each target ticker, and populates the targets structure.
+    and metadata for each target ticker, and populates the sectors structure
+    so that macro/sector collection can begin.
     """
     user_id = state.get("user_id") or "local-user"
-    logger.info("Planner Node starting | user_id=%s run_id=%s", user_id, state.get("run_id"))
+    logger.info("Plan Macro/Sector Node starting | user_id=%s run_id=%s", user_id, state.get("run_id"))
 
     # 1. Fetch watchlist
     async with AsyncSessionLocal() as session:
@@ -121,8 +122,6 @@ async def plan_node(state: ResearchState) -> dict:
     sectors_set = set()
     for idx, ticker in enumerate(watchlist):
         name, sector = results[idx]
-        # Ignore tickers that we couldn't resolve sector for (marked as Unknown)
-        # unless they are the only ones, in which case we default to "Diversified"
         if sector == "Unknown":
             sector = "Diversified"
         ticker_to_sector[ticker] = sector
@@ -130,7 +129,7 @@ async def plan_node(state: ResearchState) -> dict:
 
     sectors = sorted(list(sectors_set))
     logger.info(
-        "Planner Node complete | tickers=%s sectors=%s mappings=%s",
+        "Plan Macro/Sector complete | watchlist=%s sectors=%s mappings=%s",
         watchlist,
         sectors,
         ticker_to_sector,
@@ -141,3 +140,48 @@ async def plan_node(state: ResearchState) -> dict:
         "sectors": sectors,
         "ticker_to_sector": ticker_to_sector,
     }
+
+
+async def plan_tickers(state: ResearchState) -> dict:
+    """Planner Node 2: Merges discovered tickers into the final target list.
+
+    Runs after `discover_screen`. Resolves metadata for any newly discovered
+    tickers. If a discovered ticker belongs to a sector that wasn't in the
+    original watchlist, it will intentionally NOT be added to `sectors`, so
+    it receives a degraded macro-only context during synthesis.
+    """
+    watchlist_tickers = state.get("tickers", [])
+    discovered_tickers = state.get("discovered_tickers", [])
+    
+    if not discovered_tickers:
+        logger.info("Plan Tickers Node: No discovered tickers to merge.")
+        return {}
+
+    logger.info("Plan Tickers Node: Resolving metadata for %d discovered tickers", len(discovered_tickers))
+    
+    # 1. Resolve sectors for discovered tickers
+    tasks = [_resolve_ticker_sector(t) for t in discovered_tickers]
+    results = await asyncio.gather(*tasks)
+
+    # 2. Update structures
+    # We must merge with the existing ticker_to_sector map
+    existing_map = state.get("ticker_to_sector", {})
+    new_map = dict(existing_map)
+    
+    for idx, ticker in enumerate(discovered_tickers):
+        name, sector = results[idx]
+        if sector == "Unknown":
+            sector = "Diversified"
+        new_map[ticker] = sector
+        # Intentionally NOT adding to state["sectors"] to avoid out-of-band sector collection.
+        # Ticker synthesis will gracefully handle missing sector synthesis.
+
+    final_tickers = watchlist_tickers + discovered_tickers
+    
+    logger.info("Plan Tickers complete | final_tickers=%s", final_tickers)
+
+    return {
+        "tickers": final_tickers,
+        "ticker_to_sector": new_map,
+    }
+

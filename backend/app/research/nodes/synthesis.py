@@ -5,6 +5,8 @@ import json
 import logging
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from app.evidence.lib import validate_citations
 from app.llm.provider import get_structured_model
 from app.research.prompts.macro import get_macro_messages
@@ -97,48 +99,137 @@ async def sector_synthesis_node(state: ResearchState) -> dict:
     return result
 
 
-# ── 3. Ticker Synthesis Node ───────────────────────────────────────────────────
+from langchain_core.prompts import ChatPromptTemplate
+from app.research.schemas import FrontierTickerSynthesis
 
-
+class _DraftCritique(BaseModel):
+    weaknesses: list[str] = Field(description="List of weak points in the draft thesis.")
+    
 async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str, TickerSynthesis | None]:
-    """Execute LLM call for a single ticker."""
+    """Execute 5-step LLM call for a single ticker."""
     pack = state.get("ticker_evidence", {}).get(ticker)
     if not pack or not pack.items:
         logger.warning("No evidence for ticker %r. Skipping synthesis.", ticker)
         return ticker, None
-
-    # Get sector context for prompt
+        
+    # Check if there was insufficient data via triage node (we can just check if pack has items, but wait, triage might pass items but we want to know if it failed. We skip that for now and just rely on pack empty or not. Actually, let's see if we should enforce it).
+    
     sector = state.get("ticker_to_sector", {}).get(ticker)
-    sector_summary = ""
+    sector_summary = "DEGRADED_MACRO_ONLY: Sector context not available for discovered ticker."
     if sector:
         sec_synth = state.get("sector_synthesis", {}).get(sector)
         if sec_synth:
             sector_summary = sec_synth.analysis_markdown
 
     logger.info("Executing Ticker Synthesis for: %s", ticker)
-    messages = get_ticker_messages(ticker, sector or "Unknown", sector_summary, pack)
-    model = get_structured_model(TickerSynthesis, temperature=0.1)
+    
+    # Pre-render evidence
+    evidence_text = "\n".join(f"[{item.id}] {item.summary}" for item in pack.items)
 
+    # 3a. Draft Thesis (Bear-case first)
+    draft_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are an equity analyst. Draft a comprehensive thesis. Crucially, start with the BEAR CASE and KILL THE COMPANY risk before any bull case. Return the TickerSynthesis JSON."),
+        ("user", "Ticker: {ticker}\nSector Context: {sector_summary}\n\nEvidence:\n{evidence}")
+    ])
+    draft_model = get_structured_model(TickerSynthesis, temperature=0.1)
+    
     try:
-        res = await model.ainvoke(messages)
-        # Validate citations
-        citation_text = (
-            res.analysis_markdown + " " +
-            " ".join(res.rationale) + " " +
-            " ".join(res.risk_factors) + " " +
-            res.bear_case
-        )
-        val = validate_citations(citation_text, pack)
-        if not val.is_valid:
-            logger.warning("Ticker %s synthesis contained invalid citations: %s", ticker, val.invalid_citations)
-        return ticker, res
+        draft: TickerSynthesis = await (draft_prompt | draft_model).ainvoke({
+            "ticker": ticker,
+            "sector_summary": sector_summary,
+            "evidence": evidence_text
+        })
     except Exception as exc:
-        logger.error("Ticker synthesis failed for %s: %s", ticker, exc)
+        logger.error("Ticker %s draft synthesis failed: %s", ticker, exc)
         return ticker, None
+
+    # 3b. Adversarial Critique
+    critique_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a red-team analyst. Critique this draft thesis. Identify logical leaps, missing risks, or unwarranted optimism. Extract weaknesses as a list of strings."),
+        ("user", "Draft Thesis:\n{draft}\n\nEvidence:\n{evidence}")
+    ])
+    critique_model = get_structured_model(_DraftCritique, temperature=0.2)
+    
+    try:
+        critique_res: _DraftCritique = await (critique_prompt | critique_model).ainvoke({
+            "draft": draft.model_dump_json(),
+            "evidence": evidence_text
+        })
+        critiques = critique_res.weaknesses
+    except Exception as exc:
+        logger.warning("Ticker %s critique failed: %s", ticker, exc)
+        critiques = []
+
+    # 3c. Revised Thesis
+    revise_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are the original equity analyst. Revise your draft thesis to address the red-team critiques. Defend your stance or adjust your recommendation/confidence. Return the TickerSynthesis JSON."),
+        ("user", "Draft Thesis:\n{draft}\n\nCritiques:\n{critiques}\n\nEvidence:\n{evidence}")
+    ])
+    revise_model = get_structured_model(TickerSynthesis, temperature=0.1)
+    
+    try:
+        revised: TickerSynthesis = await (revise_prompt | revise_model).ainvoke({
+            "draft": draft.model_dump_json(),
+            "critiques": "\n".join(critiques),
+            "evidence": evidence_text
+        })
+    except Exception as exc:
+        logger.error("Ticker %s revise synthesis failed: %s", ticker, exc)
+        return ticker, None
+
+    # 3d. Frontier Judgment (CIO)
+    # Uses gemini by default, with max_retries=3 and fallback to ollama_cloud
+    cio_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are the Chief Investment Officer. Review the analyst's revised thesis. You hold final veto power. Adjust the recommendation or confidence if the evidence doesn't support the analyst's conviction. Explicitly state what changed and why. Return the FrontierTickerSynthesis JSON."),
+        ("user", "Revised Thesis:\n{revised}\n\nEvidence:\n{evidence}")
+    ])
+    cio_model = get_structured_model(
+        FrontierTickerSynthesis, 
+        temperature=0.1, 
+        provider="gemini",
+        fallback_provider="ollama_cloud"
+    )
+    
+    final_output: TickerSynthesis = revised
+    try:
+        cio_judgment: FrontierTickerSynthesis = await (cio_prompt | cio_model).ainvoke({
+            "revised": revised.model_dump_json(),
+            "evidence": evidence_text
+        })
+        # Merge frontier changes into final output
+        final_output.recommendation = cio_judgment.recommendation
+        final_output.confidence_score = cio_judgment.confidence_score
+        final_output.target_price = cio_judgment.target_price
+        # Add the frontier reasoning to the rationale
+        final_output.rationale.insert(0, f"CIO Judgment: {cio_judgment.what_changed_and_why}")
+    except Exception as exc:
+        logger.warning("Ticker %s CIO Judgment failed (all retries/fallbacks exhausted). Falling back to Analyst Revised Thesis: %s", ticker, exc)
+        final_output.frontier_judgment_unavailable = True
+
+    # Assign provenance fields based on state
+    discovered_tickers = state.get("discovered_tickers", [])
+    if ticker in discovered_tickers:
+        final_output.source = "discovered"
+        # We could lookup the exact vector/reason from discovery node if we stored it,
+        # but for now we just mark it discovered.
+        final_output.discovery_reason = "Surfaced via automated discovery scanning."
+
+    # Validate citations on the final output
+    citation_text = (
+        final_output.analysis_markdown + " " +
+        " ".join(final_output.rationale) + " " +
+        " ".join(final_output.risk_factors) + " " +
+        final_output.bear_case
+    )
+    val = validate_citations(citation_text, pack)
+    if not val.is_valid:
+        logger.warning("Ticker %s synthesis contained invalid citations: %s", ticker, val.invalid_citations)
+        
+    return ticker, final_output
 
 
 async def ticker_synthesis_node(state: ResearchState) -> dict:
-    """Synthesize ticker-level evidence for all watchlisted tickers in parallel."""
+    """Synthesize ticker-level evidence using a 5-step pipeline."""
     tickers = state.get("tickers") or []
     if not tickers:
         return {}
@@ -160,15 +251,15 @@ async def ticker_synthesis_node(state: ResearchState) -> dict:
     return result
 
 
-# ── 4. Portfolio Synthesis Node ────────────────────────────────────────────────
-
+from app.evidence.schemas import EvidencePack, EvidenceItem
+from datetime import datetime, timezone
+import yfinance as yf
+from app.quant.lib import compute_correlation_matrix
 
 async def portfolio_synthesis_node(state: ResearchState) -> dict:
     """CIO Node: Synthesize macro, sector, ticker outputs, and correlation matrices."""
-    pack = state.get("portfolio_evidence")
-    if not pack or not pack.items:
-        logger.warning("Portfolio evidence pack is empty. Skipping portfolio synthesis.")
-        return {}
+    run_id = state.get("run_id") or "test_run"
+    logger.info("Executing Portfolio Synthesis...")
 
     # Extract inputs from state
     macro_outlook = "neutral"
@@ -191,21 +282,81 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
             "recommendation": data.recommendation,
             "confidence_score": data.confidence_score,
             "rationale": "; ".join(data.rationale),
+            "source": getattr(data, "source", "watchlist"),
         }
         for tick, data in state.get("ticker_synthesis", {}).items()
     }
 
-    # Extract correlation matrix from computed metric (if present)
+    # Fetch 90 days of data for the correlation matrix on the fly for all synthesized tickers
+    fetched_at = datetime.now(timezone.utc)
     correlation_matrix = {}
-    corr_item = next((it for it in pack.items if it.id == "comp_portfolio_correlation"), None)
-    if corr_item:
+    valid_tickers = list(ticker_recs.keys())
+    
+    if len(valid_tickers) > 1:
         try:
-            data = json.loads(corr_item.summary)
-            correlation_matrix = data.get("return_correlation_matrix", {})
-        except Exception:
-            pass
+            data = await asyncio.to_thread(yf.download, valid_tickers, period="3mo", progress=False)
+            if not data.empty and 'Close' in data:
+                closes = data['Close']
+                # compute_correlation_matrix expects dict[str, list[float]]
+                ticker_bars = {}
+                for tick in valid_tickers:
+                    if tick in closes:
+                        ticker_bars[tick] = closes[tick].dropna().values.tolist()
+                
+                if ticker_bars:
+                    correlation_matrix = compute_correlation_matrix(ticker_bars)
+        except Exception as e:
+            logger.warning("Failed to compute portfolio correlation matrix: %s", e)
 
-    logger.info("Executing Portfolio Synthesis...")
+    # Build portfolio evidence pack
+    items = []
+    if correlation_matrix:
+        items.append(
+            EvidenceItem(
+                id="comp_portfolio_correlation",
+                type="computed_metric",
+                source="internal_computation",
+                fetched_at=fetched_at,
+                freshness="same_day",
+                summary=json.dumps({"return_correlation_matrix": correlation_matrix}),
+            )
+        )
+        
+    macro_pack = state.get("macro_evidence")
+    if macro_pack and macro_pack.items:
+        macro_summaries = [it.summary for it in macro_pack.items[:2]]
+        items.append(
+            EvidenceItem(
+                id="macro_portfolio_context",
+                type="prior_artifact",
+                source="internal_computation",
+                fetched_at=fetched_at,
+                freshness="same_day",
+                summary=f"Top Macro context lines: {' | '.join(macro_summaries)}",
+            )
+        )
+        
+    # Inject drift reports into evidence if any exist
+    drift_reports = state.get("drift_reports", {})
+    if drift_reports:
+        items.append(
+            EvidenceItem(
+                id="reconciliation_drift_reports",
+                type="computed_metric",
+                source="reconciliation_node",
+                fetched_at=fetched_at,
+                freshness="same_day",
+                summary=json.dumps({"drift_reports": drift_reports}),
+            )
+        )
+
+    pack = EvidencePack(
+        pack_id=f"{run_id}_portfolio",
+        target="portfolio",
+        items=items,
+        created_at=fetched_at,
+    )
+
     messages = get_portfolio_messages(
         macro_outlook=macro_outlook,
         macro_drivers=macro_drivers,
@@ -225,7 +376,10 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
         )
         if not val.is_valid:
             logger.warning("Portfolio synthesis contained invalid citations: %s", val.invalid_citations)
-        return {"portfolio_synthesis": res}
+        return {
+            "portfolio_synthesis": res,
+            "portfolio_evidence": pack  # Pass to state for persist_node
+        }
     except Exception as exc:
         logger.error("Portfolio synthesis node failed: %s", exc)
         return {"errors": [f"Portfolio synthesis failed: {exc}"]}

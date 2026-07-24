@@ -41,12 +41,14 @@ class ResearchState(TypedDict):
     sector_evidence: Annotated[dict[str, EvidencePack], merge_dict]
     ticker_evidence: Annotated[dict[str, EvidencePack], merge_dict]
     portfolio_evidence: EvidencePack | None
+    follow_up_queries: Annotated[dict[str, list[str]], merge_dict]
 
     # ── Generated Syntheses ───────────────────────────────────────────────────
     macro_synthesis: MacroSynthesis | None
     sector_synthesis: Annotated[dict[str, SectorSynthesis], merge_dict]
     ticker_synthesis: Annotated[dict[str, TickerSynthesis], merge_dict]
     portfolio_synthesis: PortfolioSynthesis | None
+    drift_reports: Annotated[dict[str, str], merge_dict]
 
     # ── Error & Flow Tracking ────────────────────────────────────────────────
     errors: Annotated[list[str], append_list]

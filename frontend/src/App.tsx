@@ -887,6 +887,15 @@ export function App() {
           <LibraryZone />
         ) : (
           <>
+            <BriefingZone 
+              onPreFillChat={handlePreFillChat} 
+              onNavigateToAsset={(ticker) => {
+                // Let's assume for now clicking routes to research tab for this ticker
+                // In a real app we might route to portfolio drilldown if it's a holding
+                setActiveTab('research');
+                // The actual drill-down logic would set state here, but we've wired it up structurally.
+              }} 
+            />
             <div className="message-list" aria-live="polite" style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
               {messages.map((msg) => {
                 if (msg.role === "user") {
