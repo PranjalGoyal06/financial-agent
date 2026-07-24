@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db import get_session
-from app.models import ResearchArtifact
+from app.models import Artifact
 from app.portfolio.lib import get_ticker_recommendation
 from app.research.graph import build_research_graph
 from app.watchlist.service import get_watchlist
@@ -92,7 +92,7 @@ async def get_run_status(run_id: str) -> dict[str, str]:
         # (This handles server restarts where in-memory RUN_STATUS is lost)
         try:
             async with AsyncSessionLocal() as session:
-                stmt = select(ResearchArtifact.id).where(ResearchArtifact.run_id == run_id).limit(1)
+                stmt = select(Artifact.id).where(Artifact.source_ref_id == run_id).limit(1)
                 res = await session.execute(stmt)
                 if res.scalar_one_or_none():
                     return {"run_id": run_id, "status": "completed"}
@@ -137,17 +137,22 @@ async def get_research_artifact(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Retrieve the markdown report and evidence pack for a specific research product."""
-    stmt = select(ResearchArtifact).where(
-        ResearchArtifact.run_id == run_id,
-        ResearchArtifact.artifact_type == artifact_type,
-    )
-    if target:
-        stmt = stmt.where(ResearchArtifact.target == target.upper())
-
+    stmt = select(Artifact).where(Artifact.source_ref_id == run_id)
     res = await session.execute(stmt)
-    artifact = res.scalar_one_or_none()
+    artifacts = res.scalars().all()
+    
+    target_upper = target.upper() if target else None
+    
+    found_artifact = None
+    metadata = {}
+    for a in artifacts:
+        meta = json.loads(a.metadata_json)
+        if meta.get("artifact_type") == artifact_type and meta.get("target") == target_upper:
+            found_artifact = a
+            metadata = meta
+            break
 
-    if not artifact:
+    if not found_artifact:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=(
@@ -156,15 +161,22 @@ async def get_research_artifact(
             ),
         )
 
+    evidence_pack = []
+    try:
+        if metadata.get("evidence_pack_json"):
+            evidence_pack = json.loads(metadata["evidence_pack_json"])
+    except Exception:
+        pass
+
     return {
-        "run_id": artifact.run_id,
-        "artifact_type": artifact.artifact_type,
-        "target": artifact.target,
-        "content_markdown": artifact.content_markdown,
-        "evidence_pack": json.loads(artifact.evidence_pack_json),
-        "recommendation": artifact.recommendation,
-        "confidence_score": artifact.confidence_score,
-        "created_at": artifact.created_at,
+        "run_id": found_artifact.source_ref_id,
+        "artifact_type": metadata.get("artifact_type"),
+        "target": metadata.get("target"),
+        "content_markdown": found_artifact.content_markdown,
+        "evidence_pack": evidence_pack,
+        "recommendation": metadata.get("recommendation"),
+        "confidence_score": metadata.get("confidence_score"),
+        "created_at": found_artifact.created_at,
     }
 
 

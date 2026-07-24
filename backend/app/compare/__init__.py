@@ -1,0 +1,1 @@
+"""Compare slash command module."""

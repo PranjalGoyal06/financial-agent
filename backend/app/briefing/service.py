@@ -22,7 +22,7 @@ from app.briefing.schemas import (
     VixMetric,
 )
 from app.market_data.provider import YFinanceProvider
-from app.models import HoldingModel, PortfolioModel, ResearchArtifact
+from app.models import HoldingModel, PortfolioModel, Artifact
 
 logger = logging.getLogger(__name__)
 _provider = YFinanceProvider()
@@ -165,7 +165,7 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
         greeting_word = "Good afternoon"
 
     # 2. Get latest research run artifacts
-    stmt_latest = select(ResearchArtifact.run_id, ResearchArtifact.created_at).order_by(ResearchArtifact.created_at.desc()).limit(1)
+    stmt_latest = select(Artifact.source_ref_id, Artifact.created_at).where(Artifact.source_type == "research").order_by(Artifact.created_at.desc()).limit(1)
     res_latest = await session.execute(stmt_latest)
     latest_run = res_latest.first()
 
@@ -184,11 +184,17 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
         run_relative_time = _get_relative_time_string(run_created_at)
 
         # 3. Analyze Tickers for Action Desk and extract news
-        stmt_artifacts = select(ResearchArtifact).where(ResearchArtifact.run_id == latest_run_id)
+        stmt_artifacts = select(Artifact).where(Artifact.source_ref_id == latest_run_id)
         res_artifacts = await session.execute(stmt_artifacts)
         artifacts = res_artifacts.scalars().all()
 
-        ticker_artifacts = [a for a in artifacts if a.artifact_type == "ticker" and a.target]
+        for a in artifacts:
+            try:
+                a._meta = json.loads(a.metadata_json)
+            except Exception:
+                a._meta = {}
+
+        ticker_artifacts = [a for a in artifacts if a._meta.get("artifact_type") == "ticker" and a._meta.get("target")]
         tickers_analyzed = len(ticker_artifacts)
         
         # We need to compute total reviewed based on holdings actually reviewed
@@ -200,29 +206,33 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
         res_holdings = await session.execute(stmt_holdings)
         holdings_tickers = {row[0] for row in res_holdings.all() if row[0]}
 
-        reviewed_holdings = [a for a in ticker_artifacts if a.target in holdings_tickers]
+        reviewed_holdings = [a for a in ticker_artifacts if a._meta.get("target") in holdings_tickers]
         total_reviewed = len(reviewed_holdings)
 
         # Get prior artifacts to detect shifts
-        prior_run_stmt = select(ResearchArtifact.run_id).where(ResearchArtifact.run_id != latest_run_id).order_by(ResearchArtifact.created_at.desc()).limit(1)
+        prior_run_stmt = select(Artifact.source_ref_id).where(Artifact.source_type == "research", Artifact.source_ref_id != latest_run_id).order_by(Artifact.created_at.desc()).limit(1)
         res_prior = await session.execute(prior_run_stmt)
         prior_run_row = res_prior.first()
         prior_artifacts_map = {}
         if prior_run_row:
             prior_run_id = prior_run_row[0]
-            stmt_prior = select(ResearchArtifact).where(ResearchArtifact.run_id == prior_run_id, ResearchArtifact.artifact_type == "ticker")
+            stmt_prior = select(Artifact).where(Artifact.source_ref_id == prior_run_id, Artifact.tags.like('%"type:ticker"%'))
             res_prior_artifacts = await session.execute(stmt_prior)
             for a in res_prior_artifacts.scalars().all():
-                if a.target:
-                    prior_artifacts_map[a.target] = a
+                try:
+                    meta = json.loads(a.metadata_json)
+                    if meta.get("target"):
+                        prior_artifacts_map[meta["target"]] = meta
+                except Exception:
+                    pass
 
         action_desk_candidates = []
         all_news = []
 
         for a in ticker_artifacts:
-            current_conf = a.confidence_score or 0
-            current_rec = a.recommendation or "unknown"
-            target = a.target or ""
+            current_conf = a._meta.get("confidence_score", 0)
+            current_rec = a._meta.get("recommendation", "unknown")
+            target = a._meta.get("target", "")
             
             # Action desk conditions
             is_high_conf = current_conf >= 80
@@ -231,8 +241,8 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
             
             prior = prior_artifacts_map.get(target)
             if prior:
-                prior_conf = prior.confidence_score or 0
-                prior_rec = prior.recommendation or "unknown"
+                prior_conf = prior.get("confidence_score", 0)
+                prior_rec = prior.get("recommendation", "unknown")
                 if abs(current_conf - prior_conf) >= 10:
                     significant_shift = True
                     diff = current_conf - prior_conf
@@ -273,7 +283,8 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
             
             # Extract News
             try:
-                ep = json.loads(a.evidence_pack_json)
+                ep_raw = a._meta.get("evidence_pack_json", "{}")
+                ep = json.loads(ep_raw) if isinstance(ep_raw, str) else ep_raw
                 for item in ep.get("items", []):
                     if item.get("type") == "news":
                         # Add a target if missing
@@ -284,10 +295,11 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
                 pass
 
         # Also extract news from macro artifact
-        macro_artifacts = [a for a in artifacts if a.artifact_type == "macro"]
+        macro_artifacts = [a for a in artifacts if a._meta.get("artifact_type") == "macro"]
         for a in macro_artifacts:
             try:
-                ep = json.loads(a.evidence_pack_json)
+                ep_raw = a._meta.get("evidence_pack_json", "{}")
+                ep = json.loads(ep_raw) if isinstance(ep_raw, str) else ep_raw
                 for item in ep.get("items", []):
                     if item.get("type") == "news":
                         if not item.get("target"):

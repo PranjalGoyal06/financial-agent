@@ -25,6 +25,8 @@ dev/
 │   │   ├── portfolio_parser.py # Tradebook CSV parser (Zerodha / Groww / generic)
 │   │   ├── portfolio_service.py# Portfolio CRUD + FIFO lot-matching
 │   │   ├── agents/reactive/    # (reserved — agent logic lives in graph.py)
+│   │   ├── compare/            # /compare slash command subgraph
+│   │   ├── create_artifact/    # /create-artifact slash command subgraph
 │   │   ├── llm/                # LLM provider factory (Groq / Ollama)
 │   │   ├── market_data/        # Quotes, history, resolver, cache, REST router
 │   │   ├── search/             # Tavily web search client, cache, local stock search router
@@ -72,11 +74,16 @@ dev/
 | Variable          | Default                                           | Purpose                             |
 | ----------------- | ------------------------------------------------- | ----------------------------------- |
 | `DATABASE_URL`    | `postgresql+asyncpg://…@127.0.0.1:5432/scale_finance` | Async Postgres connection       |
-| `LLM_PROVIDER`    | `groq`                                            | `groq` or `ollama`                  |
+| `LLM_PROVIDER`    | `groq`                                            | `groq`, `gemini`, `ollama_cloud`, or `ollama` |
 | `GROQ_API_KEY`    | —                                                 | Groq Cloud API key                  |
 | `GROQ_MODEL`      | —                                                 | Groq model override                 |
+| `GEMINI_API_KEY`  | —                                                 | Google Gemini API key               |
+| `GEMINI_MODEL`    | `gemini-1.5-flash`                                | Gemini model name                   |
 | `OLLAMA_BASE_URL` | `http://localhost:11434`                           | Local Ollama endpoint               |
 | `OLLAMA_MODEL`    | `qwen3.5:latest`                                  | Ollama model name                   |
+| `OLLAMA_CLOUD_BASE_URL` | —                                           | Remote Ollama Cloud endpoint        |
+| `OLLAMA_CLOUD_MODEL`    | `qwen3.5:latest`                            | Ollama Cloud model name             |
+| `OLLAMA_CLOUD_API_KEY`  | —                                           | Remote Ollama Cloud API key         |
 | `TAVILY_API_KEY`  | —                                                 | Tavily web search API key           |
 | `CHROMA_HOST`     | `localhost`                                        | ChromaDB host                       |
 | `CHROMA_PORT`     | `8001`                                             | ChromaDB port                       |
@@ -119,8 +126,7 @@ The chat endpoint returns a `text/event-stream` with these event types:
 - `error` — error during processing
 - `final` — stream complete
 
-Helper `_build_portfolio_context(session)` formats the user's holdings into a
-markdown table injected into the agent's system prompt at runtime.
+The endpoint accepts the raw FastAPI `Request` object and monitors `await raw_request.is_disconnected()`. If the client aborts the HTTP stream via `AbortController` (or submits a new prompt to auto-interrupt), the backend cleanly halts graph iteration and LLM token generation immediately. Partial generated content is preserved in the frontend message history, and running tool calls transition to an interrupted status.
 
 ### 3.2 Database Layer
 

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.messages import HumanMessage
@@ -31,6 +31,7 @@ from app.market_data.schemas import MarketQuote
 from app.research.router import router as research_router
 from app.briefing.router import router as briefing_router
 from app.search.stocks_router import router as stocks_router
+from app.artifacts.router import router as artifacts_router
 from app.schemas import ChatHealthResponse, ChatRequest, ServiceStatus
 
 
@@ -52,6 +53,7 @@ app.include_router(market_data_router)
 app.include_router(research_router)
 app.include_router(briefing_router)
 app.include_router(stocks_router, prefix="/api/search")
+app.include_router(artifacts_router)
 
 
 
@@ -147,6 +149,7 @@ def _tool_output_summary(tool_name: str, output: Any) -> str:
 async def stream_chat_events(
     request: ChatRequest,
     session: AsyncSession,
+    raw_request: Request | None = None,
 ) -> AsyncIterator[str]:
     yield sse(
         "run_start",
@@ -157,28 +160,75 @@ async def stream_chat_events(
         },
     )
 
-    try:
-        portfolio_context = await _build_portfolio_context(session)
-        agent = get_agent(
-            portfolio_context,
-            provider=request.llm_provider,
-            model=request.llm_model,
-        )
-    except ValueError as exc:
-        yield sse("error", {"message": str(exc)})
-        return
+    is_compare = request.message.strip().startswith("/compare")
+    is_create_artifact = request.message.strip().startswith("/create-artifact")
+
+    if is_compare:
+        import uuid
+        from app.compare.graph import compare_agent
+        
+        req_id = str(uuid.uuid4())
+        agent = compare_agent
+        input_dict = {
+            "messages": [HumanMessage(content=request.message)],
+            "request_id": req_id,
+            "llm_provider": request.llm_provider or settings.llm_provider,
+            "llm_model": request.llm_model,
+        }
+    elif is_create_artifact:
+        import uuid
+        from app.create_artifact.graph import create_artifact_graph
+        
+        req_id = str(uuid.uuid4())
+        agent = create_artifact_graph
+        input_dict = {
+            "messages": [HumanMessage(content=request.message)],
+            "request_id": req_id,
+            "llm_provider": request.llm_provider or settings.llm_provider,
+            "llm_model": request.llm_model,
+        }
+    else:
+        try:
+            portfolio_context = await _build_portfolio_context(session)
+            agent = get_agent(
+                portfolio_context,
+                provider=request.llm_provider,
+                model=request.llm_model,
+            )
+            input_dict = {"messages": [HumanMessage(content=request.message)]}
+        except ValueError as exc:
+            yield sse("error", {"message": str(exc)})
+            return
 
     try:
+        # Before yielding from the graph, yield conversational text if we are a slash command without an LLM text node
+        if is_compare:
+            for word in "Sure! Let me fetch the market data to compare those for you.\n\n".split(" "):
+                yield sse("token", {"token": word + " "})
+        elif is_create_artifact:
+            for word in "I'll create that artifact for you right away.\n\n".split(" "):
+                yield sse("token", {"token": word + " "})
+                
         async for event in agent.astream_events(
-            {"messages": [HumanMessage(content=request.message)]},
+            input_dict,
             version="v2",
         ):
+            if raw_request is not None and await raw_request.is_disconnected():
+                break
+
             kind = event["event"]
 
             if kind == "on_chat_model_stream":
                 token = event["data"]["chunk"].content
-                if token:
-                    yield sse("token", {"token": token})
+                if isinstance(token, list):
+                    # Extract text from list of blocks (e.g. Claude/Gemini)
+                    texts = [b.get("text", "") for b in token if isinstance(b, dict) and "text" in b]
+                    token_str = "".join(texts)
+                else:
+                    token_str = str(token) if token else ""
+                    
+                if token_str:
+                    yield sse("token", {"token": token_str})
 
             elif kind == "on_tool_start":
                 tool_name = event.get("name", "tool")
@@ -212,10 +262,25 @@ async def stream_chat_events(
                         "output": raw_content,
                     },
                 )
+                
+            elif kind == "on_chain_end" and event.get("name") in ["parse_input", "fetch_data", "generate_comparison", "audit_persist", "render_card"]:
+                output = event.get("data", {}).get("output", {})
+                if isinstance(output, dict):
+                    if "error" in output and output["error"]:
+                        yield sse("error", {"message": output["error"]})
+                    elif "envelope" in output and output["envelope"]:
+                        envelope = output["envelope"]
+                        # If it's a Pydantic model, call model_dump()
+                        payload = envelope.model_dump() if hasattr(envelope, "model_dump") else envelope
+                        yield sse("card_render", payload)
 
         resolved_provider = (request.llm_provider or settings.llm_provider).lower()
         if resolved_provider == "groq":
             active_model = request.llm_model or settings.groq_model or "unknown"
+        elif resolved_provider == "gemini":
+            active_model = request.llm_model or settings.gemini_model or "unknown"
+        elif resolved_provider == "ollama_cloud":
+            active_model = request.llm_model or settings.ollama_cloud_model or "unknown"
         else:
             active_model = request.llm_model or settings.ollama_model or "unknown"
         yield sse(
@@ -278,6 +343,16 @@ async def health(session: AsyncSession = Depends(get_session)) -> ChatHealthResp
                     raise ValueError("Groq API key not set")
                 res = await client.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {settings.groq_api_key}"})
                 res.raise_for_status()
+            elif provider == "gemini":
+                if not settings.gemini_api_key:
+                    raise ValueError("Gemini API key not set")
+                res = await client.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={settings.gemini_api_key}")
+                res.raise_for_status()
+            elif provider == "ollama_cloud":
+                if not settings.ollama_cloud_base_url:
+                    raise ValueError("Ollama Cloud base URL not set")
+                res = await client.get(f"{settings.ollama_cloud_base_url}/api/tags")
+                res.raise_for_status()
             elif provider == "ollama":
                 res = await client.get(f"{settings.ollama_base_url}/api/tags")
                 res.raise_for_status()
@@ -314,10 +389,11 @@ async def health(session: AsyncSession = Depends(get_session)) -> ChatHealthResp
 @app.post("/chat")
 async def chat(
     request: ChatRequest,
+    raw_request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     return StreamingResponse(
-        stream_chat_events(request, session),
+        stream_chat_events(request, session, raw_request=raw_request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

@@ -40,7 +40,7 @@ async def startup_event():
     load_stocks_data()
 
 @router.get("/stocks", response_model=List[StockResponse])
-async def search_stocks(q: str = Query("", min_length=1)):
+async def search_stocks(q: str = Query("")):
     """Search stocks by symbol or name. Returns top 10 results."""
     query = q.lower().strip()
     if not query:

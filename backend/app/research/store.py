@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime, timezone
 from typing import Literal, Any
 
@@ -10,12 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.evidence.schemas import EvidenceItem, compute_freshness
-from app.models import ResearchArtifact
+from app.models import Artifact
 
 logger = logging.getLogger(__name__)
 
-# Single collection name for all research artifacts
-COLLECTION_NAME = "research_artifacts"
+# Single collection name for all artifacts
+COLLECTION_NAME = "artifacts"
 
 # Initialize Chroma HttpClient client using settings
 _client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
@@ -23,11 +24,121 @@ _embedding_fn = DefaultEmbeddingFunction()
 
 
 def get_collection():
-    """Get or create the research_artifacts Chroma collection."""
+    """Get or create the artifacts Chroma collection."""
     return _client.get_or_create_collection(
         name=COLLECTION_NAME,
         embedding_function=_embedding_fn,
     )
+
+
+async def save_artifact(
+    session: AsyncSession,
+    *,
+    source_type: str,
+    source_ref_id: str | None = None,
+    title: str,
+    content_markdown: str,
+    tags: list[str] | None = None,
+    metadata_json: dict[str, Any] | None = None,
+    user_id: str | None = None,
+) -> Artifact:
+    """Save a generalized artifact to Postgres and index it in Chroma.
+
+    This ensures Postgres is the single source of truth, while Chroma acts
+    as the queryable vector index for historical retrieval.
+    """
+    if tags is None:
+        tags = []
+    if metadata_json is None:
+        metadata_json = {}
+
+    # 1. Save to Postgres
+    artifact = Artifact(
+        source_type=source_type,
+        source_ref_id=source_ref_id,
+        title=title,
+        content_markdown=content_markdown,
+        tags=json.dumps(tags),
+        metadata_json=json.dumps(metadata_json),
+        user_id=user_id,
+    )
+    session.add(artifact)
+    await session.flush()  # Populates artifact.id and artifact.created_at
+
+    # 2. Index in Chroma
+    # We use a try-except block so that a Chroma indexing failure doesn't roll back the DB transaction.
+    try:
+        col = get_collection()
+        
+        # Meta dictionary values must be simple types (str, int, float, bool)
+        metadata: dict[str, Any] = {
+            "source_type": source_type,
+            "id": artifact.id,
+            "created_at": artifact.created_at.isoformat(),
+        }
+        if source_ref_id:
+            metadata["source_ref_id"] = source_ref_id
+            
+        # Push flat metadata for filtering
+        for k, v in metadata_json.items():
+            if isinstance(v, (str, int, float, bool)):
+                metadata[k] = v
+
+        col.add(
+            ids=[artifact.id],
+            documents=[content_markdown],
+            metadatas=[metadata],
+        )
+        logger.info(
+            "Indexed artifact in Chroma | id=%s source_type=%s",
+            artifact.id,
+            source_type,
+        )
+        
+        # Mark as indexed in DB (optional, but good practice)
+        artifact.chroma_indexed = True
+        session.add(artifact)
+        await session.flush()
+
+    except Exception as exc:
+        logger.error("Failed to index artifact in Chroma: %s", exc)
+
+    return artifact
+
+
+async def delete_artifact(session: AsyncSession, artifact_id: str) -> bool:
+    """Delete an artifact from Postgres and Chroma."""
+    # 1. Delete from Postgres
+    artifact = await session.get(Artifact, artifact_id)
+    if not artifact:
+        return False
+        
+    await session.delete(artifact)
+    await session.flush()
+    
+    # 2. Delete from Chroma
+    try:
+        col = get_collection()
+        col.delete(ids=[artifact_id])
+    except Exception as exc:
+        logger.warning("Failed to delete artifact from Chroma: %s", exc)
+        
+    return True
+
+
+async def rename_artifact(session: AsyncSession, artifact_id: str, new_title: str) -> Artifact | None:
+    """Rename an artifact's title in Postgres."""
+    artifact = await session.get(Artifact, artifact_id)
+    if not artifact:
+        return None
+        
+    artifact.title = new_title
+    await session.flush()
+    
+    # Chroma index doesn't currently include the title in metadata or documents
+    # in a way that requires an update for simple renaming, so we just update Postgres.
+    
+    return artifact
 
 
 async def save_research_artifact(
@@ -40,58 +151,36 @@ async def save_research_artifact(
     evidence_pack_json: str,
     recommendation: str | None = None,
     confidence_score: int | None = None,
-) -> ResearchArtifact:
-    """Save a research artifact to Postgres and index it in Chroma.
+) -> Artifact:
+    """Wrapper to save research-specific artifacts using the generalized schema."""
+    title = f"{artifact_type.capitalize()} Research"
+    if target:
+        title += f" for {target}"
 
-    This ensures Postgres is the single source of truth, while Chroma acts
-    as the queryable vector index for historical retrieval.
-    """
-    # 1. Save to Postgres
-    artifact = ResearchArtifact(
-        run_id=run_id,
-        artifact_type=artifact_type,
-        target=target,
+    tags = [f"type:{artifact_type}"]
+    if target:
+        tags.append(f"target:{target}")
+
+    metadata = {
+        "artifact_type": artifact_type,
+        "target": target,
+        "evidence_pack_json": evidence_pack_json,
+    }
+    if recommendation:
+        metadata["recommendation"] = recommendation
+        tags.append(f"recommendation:{recommendation}")
+    if confidence_score is not None:
+        metadata["confidence_score"] = confidence_score
+
+    return await save_artifact(
+        session=session,
+        source_type="research",
+        source_ref_id=run_id,
+        title=title,
         content_markdown=content_markdown,
-        evidence_pack_json=evidence_pack_json,
-        recommendation=recommendation,
-        confidence_score=confidence_score,
+        tags=tags,
+        metadata_json=metadata,
     )
-    session.add(artifact)
-    await session.flush()  # Populates artifact.id and artifact.created_at
-
-    # 2. Index in Chroma
-    # We use a try-except block so that a Chroma indexing failure doesn't roll back the DB transaction.
-    try:
-        col = get_collection()
-        
-        # Meta dictionary values must be simple types (str, int, float, bool)
-        metadata: dict[str, Any] = {
-            "run_id": run_id,
-            "artifact_type": artifact_type,
-            "target": target or "",
-            "id": artifact.id,
-            "created_at": artifact.created_at.isoformat(),
-        }
-        if recommendation:
-            metadata["recommendation"] = recommendation
-        if confidence_score is not None:
-            metadata["confidence_score"] = confidence_score
-
-        col.add(
-            ids=[artifact.id],
-            documents=[content_markdown],
-            metadatas=[metadata],
-        )
-        logger.info(
-            "Indexed research artifact in Chroma | id=%s type=%s target=%s",
-            artifact.id,
-            artifact_type,
-            target,
-        )
-    except Exception as exc:
-        logger.error("Failed to index research artifact in Chroma: %s", exc)
-
-    return artifact
 
 
 async def search_prior_artifacts(
@@ -101,7 +190,7 @@ async def search_prior_artifacts(
     artifact_type: Literal["macro", "sector", "ticker", "portfolio"] | None = None,
     target: str | None = None,
 ) -> list[EvidenceItem]:
-    """Search historical research artifacts using Chroma vector similarity.
+    """Search historical artifacts using Chroma vector similarity.
 
     Returns the matches normalised to EvidenceItem objects of type
     ``prior_artifact``, ready to be fed into downstream nodes.

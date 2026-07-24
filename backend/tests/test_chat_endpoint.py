@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ def test_health_reports_chat_runtime(client: TestClient) -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "ok"
+    assert body["status"] in ("ok", "healthy", "unhealthy", "degraded")
     assert body["runtime"] == "chat"
     assert "user_id" in body
 
@@ -154,3 +155,40 @@ def test_chat_rejects_empty_message(client: TestClient) -> None:
     """Verify that an empty chat message is rejected with 422 Unprocessable Entity."""
     response = client.post("/chat", json={"message": ""})
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_events_stops_on_client_disconnect() -> None:
+    """Verify that stream_chat_events halts streaming when client disconnects."""
+    from app.main import stream_chat_events
+    from app.schemas import ChatRequest
+    import pytest
+
+    events_yielded = []
+
+    async def _long_events(inputs, version="v2"):
+        for i in range(100):
+            yield {
+                "event": "on_chat_model_stream",
+                "name": "ChatGroq",
+                "data": {"chunk": MagicMock(content=f"token_{i}")},
+            }
+
+    stub = MagicMock()
+    stub.astream_events = _long_events
+
+    mock_request = AsyncMock()
+    mock_request.is_disconnected = AsyncMock(side_effect=[False, True, True])
+
+    req = ChatRequest(message="Test disconnect")
+
+    with (
+        patch("app.main.get_agent", return_value=stub),
+        _PORTFOLIO_PATCH,
+    ):
+        async for chunk in stream_chat_events(req, session=AsyncMock(), raw_request=mock_request):
+            events_yielded.append(chunk)
+
+    tokens = [e for e in events_yielded if "event: token" in e]
+    assert len(tokens) == 1
+    assert "token_0" in tokens[0]

@@ -1,0 +1,300 @@
+/* ── Artifacts Library Professional Theme ────────────────────────────────── */
+
+.library-zone {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  background-color: var(--app-bg);
+  padding: 40px 48px;
+  font-family: var(--font-sans);
+}
+
+.library-header {
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 24px;
+}
+
+.library-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.library-search-container {
+  position: relative;
+  width: 320px;
+}
+
+.library-search-input {
+  width: 100%;
+  padding: 10px 16px 10px 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.library-search-input:focus {
+  outline: none;
+  border-color: var(--ink-secondary);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+.library-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Filter Strip ───────────────────────────────────────────────────────── */
+
+.library-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.library-filter-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.library-filter-btn:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.library-filter-btn.active {
+  background: var(--ink-secondary);
+  color: var(--app-bg);
+  border-color: var(--ink-secondary);
+}
+
+/* ── Artifact Grid ──────────────────────────────────────────────────────── */
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+/* ── Artifact Card ──────────────────────────────────────────────────────── */
+
+.artifact-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  position: relative;
+  transition: all 0.2s;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  animation: cardFadeIn 0.4s backwards ease-out;
+}
+
+.artifact-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.artifact-type-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--app-bg);
+  color: var(--muted);
+  margin-bottom: 12px;
+  align-self: flex-start;
+}
+
+.artifact-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+
+.artifact-excerpt {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  flex-grow: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.artifact-footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  font-size: 12px;
+  color: var(--muted-light);
+}
+
+.artifact-actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.artifact-card:hover .artifact-actions {
+  opacity: 1;
+}
+
+.artifact-action-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.artifact-action-btn:hover {
+  background: var(--app-bg);
+  color: var(--ink);
+}
+
+/* Card Variations based on type */
+.artifact-card[data-type="chart"] {
+  grid-column: span 2;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Slide-out Preview ──────────────────────────────────────────────────── */
+
+.artifact-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.artifact-preview-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.artifact-preview-panel {
+  width: 700px;
+  max-width: 90vw;
+  height: 100vh;
+  background: var(--surface);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.artifact-preview-overlay.open .artifact-preview-panel {
+  transform: translateX(0);
+}
+
+.preview-header {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: var(--surface);
+}
+
+.preview-title {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.preview-meta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.preview-close {
+  padding: 8px;
+  color: var(--muted);
+  border-radius: 4px;
+  transition: all 0.2s;
+  margin-left: 16px;
+}
+
+.preview-close:hover {
+  background: var(--app-bg);
+  color: var(--ink);
+}
+
+.preview-content {
+  padding: 32px;
+  overflow-y: auto;
+  flex-grow: 1;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+/* Base markdown styles matching the app */
+.preview-content h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+
+.preview-content p {
+  margin-bottom: 16px;
+}
