@@ -1,20 +1,17 @@
-import React, { useState, useCallback } from 'react';
-import { Edge } from '@xyflow/react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { RunHistorySidebar, RunHistoryItem } from './components/RunHistorySidebar';
 import { OrchestrationGraph } from './components/OrchestrationGraph';
 import { EvidenceDrawer, EvidenceItem } from './components/EvidenceDrawer';
 import { NodeDetailsPanel } from './components/NodeDetailsPanel';
 import { DiscoveryThesisView, DiscoveredTicker } from './components/DiscoveryThesisView';
 import { AppNode, GraphNodeData } from './components/GraphNode';
-import { FileText, Plus, Search, Activity, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { FileText, Plus, Search, Activity, PanelLeftClose, PanelLeftOpen, Clock } from 'lucide-react';
 import './research.css';
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
+import { api, ResearchRun } from './api';
+import { useResearchRun } from './useResearchRun';
 
-const mockRuns: RunHistoryItem[] = [
-  { id: '1', topic: 'Market Analysis Q3', date: 'Oct 26, 2026', status: 'running', duration: '14m 20s' },
-  { id: '2', topic: 'Competitor Scrape v1', date: 'Oct 25, 2026', status: 'completed', duration: '45m 0s' },
-];
+// ── Mock Data ─────────────────────────────────────────────────────────────────
 
 const mockDiscoveries: DiscoveredTicker[] = [
   { 
@@ -35,86 +32,65 @@ const mockDiscoveries: DiscoveredTicker[] = [
   }
 ];
 
-const initialNodes: AppNode[] = [
-  { id: 'plan_macro_sector', position: { x: 250, y: 50 }, data: { label: 'plan_macro_sector', status: 'completed' }, type: 'customNode' },
-  { id: 'collect_macro_sector', position: { x: 250, y: 150 }, data: { label: 'collect_macro_sector', status: 'completed' }, type: 'customNode' },
-  { id: 'discover_screen', position: { x: 250, y: 250 }, data: { label: 'discover_screen', status: 'completed' }, type: 'customNode' },
-  { id: 'plan_tickers', position: { x: 250, y: 350 }, data: { label: 'plan_tickers', status: 'completed' }, type: 'customNode' },
-  { id: 'collect_tickers_round1', position: { x: 250, y: 450 }, data: { label: 'collect_tickers_round1', status: 'completed' }, type: 'customNode' },
-  { id: 'evidence_triage', position: { x: 250, y: 550 }, data: { label: 'evidence_triage', status: 'completed' }, type: 'customNode' },
-  { id: 'collect_tickers_round2', position: { x: 250, y: 650 }, data: { label: 'collect_tickers_round2', status: 'completed', ghosted: true }, type: 'customNode' },
-  { id: 'macro_synthesis', position: { x: 250, y: 750 }, data: { label: 'macro_synthesis', status: 'completed' }, type: 'customNode' },
-  { id: 'sector_synthesis', position: { x: 250, y: 850 }, data: { label: 'sector_synthesis', status: 'completed' }, type: 'customNode' },
-  
-  // Grouped Node: ticker_synthesis
-  { 
-    id: 'ticker_synthesis', 
-    position: { x: 200, y: 950 }, 
-    data: { label: 'ticker_synthesis', status: 'running' },
-    style: { width: 300, height: 480, backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px dashed var(--line-strong)', borderRadius: '12px' },
-    type: 'group' // default react flow group
-  },
-  { id: 'ts_draft', position: { x: 25, y: 40 }, data: { label: 'draft', status: 'completed', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_critique', position: { x: 25, y: 120 }, data: { label: 'critique', status: 'completed', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_revise', position: { x: 25, y: 200 }, data: { label: 'revise', status: 'completed', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_cio', position: { x: 25, y: 280 }, data: { label: 'CIO judgment', status: 'completed', llmTier: 'tier-frontier' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_validate', position: { x: 25, y: 360 }, data: { label: 'validate_citations', status: 'running', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-
-  { id: 'reconcile', position: { x: 250, y: 1500 }, data: { label: 'reconcile_with_prior', status: 'pending', informational: true }, type: 'customNode' },
-  { id: 'portfolio_synthesis', position: { x: 250, y: 1600 }, data: { label: 'portfolio_synthesis', status: 'pending' }, type: 'customNode' },
-  { id: 'persist', position: { x: 250, y: 1700 }, data: { label: 'persist', status: 'pending' }, type: 'customNode' },
-];
-
-const initialEdges: Edge[] = [
-  { id: 'e1', source: 'plan_macro_sector', target: 'collect_macro_sector', animated: true },
-  { id: 'e2', source: 'collect_macro_sector', target: 'discover_screen', animated: true },
-  { id: 'e3', source: 'discover_screen', target: 'plan_tickers', animated: true },
-  { id: 'e4', source: 'plan_tickers', target: 'collect_tickers_round1', animated: true },
-  { id: 'e5', source: 'collect_tickers_round1', target: 'evidence_triage', animated: true },
-  { id: 'e6', source: 'evidence_triage', target: 'collect_tickers_round2', animated: true },
-  { id: 'e7', source: 'collect_tickers_round2', target: 'macro_synthesis', animated: true },
-  { id: 'e8', source: 'macro_synthesis', target: 'sector_synthesis', animated: true },
-  { id: 'e9', source: 'sector_synthesis', target: 'ticker_synthesis', animated: true },
-  
-  // Group internal edges
-  { id: 'e_ts1', source: 'ts_draft', target: 'ts_critique', animated: true },
-  { id: 'e_ts2', source: 'ts_critique', target: 'ts_revise', animated: true },
-  { id: 'e_ts3', source: 'ts_revise', target: 'ts_cio', animated: true },
-  { id: 'e_ts4', source: 'ts_cio', target: 'ts_validate', animated: true },
-
-  // Group to reconcile (with edge label)
-  { 
-    id: 'e_ts_out', 
-    source: 'ticker_synthesis', 
-    target: 'reconcile', 
-    animated: true,
-    label: '⚠ Flipped to BUY (Upgraded conviction)',
-    labelStyle: { fill: 'var(--ink)', fontWeight: 600, fontSize: 11 },
-    labelBgStyle: { fill: 'var(--surface)', stroke: 'var(--blue)', strokeWidth: 1, rx: 4, ry: 4 },
-    labelBgPadding: [8, 4]
-  },
-  { id: 'e10', source: 'reconcile', target: 'portfolio_synthesis', animated: false },
-  { id: 'e11', source: 'portfolio_synthesis', target: 'persist', animated: false },
-];
-
 const mockEvidence: EvidenceItem[] = [
   { id: 'e1', type: 'url', title: 'Q3 Market Earnings Report', urlOrPath: 'https://example.com/q3', status: 'useful', snippet: 'The market saw a 12% increase...' },
   { id: 'e2', type: 'document', title: 'Competitor PDF', urlOrPath: '#', status: 'discarded', reason: '404 Not Found' }
 ];
+
+function formatTime(isoStr: string) {
+  try {
+    return new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return isoStr;
+  }
+}
 
 export function ResearchLayout() {
   const [activeTab, setActiveTab] = useState<'runs' | 'discovery'>('runs');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // State for Runs view
-  const [selectedRunId, setSelectedRunId] = useState<string>('1');
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [isEvidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [runsList, setRunsList] = useState<ResearchRun[]>([]);
+
+  const { nodes, edges, events, runStatus } = useResearchRun(selectedRunId);
+
+  useEffect(() => {
+    // Fetch initial runs
+    api.getRuns().then(data => {
+      setRunsList(data.runs);
+      if (data.runs.length > 0) {
+        setSelectedRunId(data.runs[0].id);
+      }
+    }).catch(err => console.error("Failed to fetch runs", err));
+  }, []);
 
   // State for Discovery view
   const [selectedDiscoveryId, setSelectedDiscoveryId] = useState<string>('d1');
 
-  const selectedNode = initialNodes.find(n => n.id === selectedNodeId)?.data || null;
+  const handleTriggerNewRun = useCallback(async () => {
+    setIsTriggering(true);
+    try {
+      const data = await api.triggerRun();
+      const newRun: ResearchRun = {
+        id: data.run_id,
+        status: 'running',
+        started_at: new Date().toISOString(),
+        completed_at: null,
+      };
+      setRunsList(prev => [newRun, ...prev]);
+      setSelectedRunId(data.run_id);
+    } catch (e) {
+      console.error('Failed to trigger research run', e);
+    } finally {
+      setIsTriggering(false);
+    }
+  }, []);
+
+  const selectedNode = nodes.find(n => n.id === selectedNodeId)?.data || null;
   const selectedDiscovery = mockDiscoveries.find(d => d.id === selectedDiscoveryId) || null;
 
   const handleNodeClick = useCallback((id: string) => {
@@ -125,7 +101,7 @@ export function ResearchLayout() {
     <div className="research-layout">
       
       {/* Unified Sidebar Container */}
-      <div className={`research-sidebar ${isSidebarCollapsed ? 'research-sidebar--collapsed' : ''}`} style={{ width: isSidebarCollapsed ? '56px' : '280px', transition: 'width 0.2s', display: 'flex', flexDirection: 'column', flexShrink: 0, borderRight: '1px solid var(--line)', background: 'var(--surface)' }}>
+      <div className={`research-sidebar ${isSidebarCollapsed ? 'research-sidebar--collapsed' : ''}`} style={{ width: isSidebarCollapsed ? '56px' : '280px', transition: 'width 0.2s', display: 'flex', flexDirection: 'column', flexShrink: 0, borderRight: '1px solid var(--line)', background: 'var(--surface)', position: 'relative', zIndex: 10 }}>
         
         {/* Sidebar Header & Collapse Toggle */}
         <div style={{ display: 'flex', justifyContent: isSidebarCollapsed ? 'center' : 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid var(--line)' }}>
@@ -159,22 +135,22 @@ export function ResearchLayout() {
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {activeTab === 'runs' ? (
             <ul className="research-sidebar__list">
-              {mockRuns.map((run) => (
+              {runsList.map((run) => (
                 <li key={run.id}>
                   <button
                     onClick={() => setSelectedRunId(run.id)}
                     className={`research-sidebar__item ${run.id === selectedRunId ? 'research-sidebar__item--selected' : ''}`}
                     style={{ justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', padding: isSidebarCollapsed ? '16px 0' : '12px 16px' }}
-                    title={run.topic}
+                    title={`Run ${run.id.slice(0,8)}`}
                   >
                     <div className="research-sidebar__item-icon">
-                      {run.status === 'running' ? <Activity size={16} color="var(--blue)" /> : <FileText size={16} color="var(--green)" />}
+                      {run.status === 'running' ? <Activity size={16} color="var(--blue)" /> : (run.status === 'failed' ? <FileText size={16} color="var(--red)" /> : <FileText size={16} color="var(--green)" />)}
                     </div>
                     {!isSidebarCollapsed && (
                       <div style={{ minWidth: 0, overflow: 'hidden', textAlign: 'left' }}>
-                        <div className="research-sidebar__item-title">{run.topic}</div>
+                        <div className="research-sidebar__item-title">Run {run.id.slice(-6)}</div>
                         <div className="research-sidebar__item-meta">
-                          <span>{run.date}</span>
+                          <span>{formatTime(run.started_at)}</span>
                         </div>
                       </div>
                     )}
@@ -217,7 +193,9 @@ export function ResearchLayout() {
           <header className="research-header">
             <div className="research-header__title">
               Research Orchestrator
-              <span className="research-badge">Running</span>
+              <span className={`research-badge ${runStatus === 'running' ? 'research-badge--running' : ''}`}>
+                {runStatus === 'running' ? 'Running...' : (runStatus === 'failed' ? 'Failed' : 'Completed')}
+              </span>
             </div>
             
             <div className="research-header__actions">
@@ -228,9 +206,30 @@ export function ResearchLayout() {
                 <FileText size={16} />
                 Evidence
               </button>
-              <button className="research-btn research-btn--primary">
+              <button 
+                onClick={async () => {
+                  const cron = prompt('Enter a cron expression to schedule a daily run (e.g., "0 17 * * 1-5" for 5 PM weekdays):', '0 17 * * 1-5');
+                  if (cron) {
+                    try {
+                      await api.scheduleRun(cron);
+                      alert('Run scheduled successfully!');
+                    } catch (e) {
+                      alert('Failed to schedule run.');
+                    }
+                  }
+                }}
+                className="research-btn"
+              >
+                <Clock size={16} />
+                Schedule
+              </button>
+              <button 
+                onClick={handleTriggerNewRun}
+                disabled={isTriggering}
+                className="research-btn research-btn--primary"
+              >
                 <Plus size={16} />
-                New Run
+                {isTriggering ? 'Starting...' : 'New Run'}
               </button>
             </div>
           </header>
@@ -238,11 +237,17 @@ export function ResearchLayout() {
           {/* Graph Area */}
           <div className="research-graph-container" style={{ display: 'flex', position: 'relative', overflow: 'hidden' }}>
             <div style={{ flex: 1, position: 'relative' }}>
-              <OrchestrationGraph
-                nodes={initialNodes}
-                edges={initialEdges}
-                onNodeClick={handleNodeClick}
-              />
+              {selectedRunId ? (
+                <OrchestrationGraph
+                  nodes={nodes}
+                  edges={edges}
+                  onNodeClick={handleNodeClick}
+                />
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--muted)' }}>
+                  No run selected.
+                </div>
+              )}
               
               {selectedNodeId && (
                 <NodeDetailsPanel
@@ -269,3 +274,4 @@ export function ResearchLayout() {
     </div>
   );
 }
+

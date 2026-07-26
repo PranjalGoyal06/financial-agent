@@ -1,6 +1,22 @@
 # Changes
 
-### [2026-07-25] — Implemented Tier-1 System-Level Debug Logging
+### [2026-07-26] — Implemented 3-Tier Model Architecture Across Research Orchestration
+- Configured Tier 1 (`gemma4:e4b` local), Tier 2 (`nemotron` via Ollama Cloud), and Tier 3 (`Gemini-3.6-Flash`) across all 14 graph nodes.
+- Mapped low-complexity search/triage query generation to Tier 1, mid-level reasoning (spillover extraction, candidate grading, red-teaming, draft synthesis, drift reports) to Tier 2 `nemotron`, and high-stakes financial decisions (CIO Judgment & Portfolio Stance) to Tier 3 `Gemini-3.6-Flash`.
+- Prevents local CPU thermal throttling while preserving Gemini API quota strictly for critical recommendation decision points.
+
+### [2026-07-26] — Completed Research Hub UI & Backend Integration
+- Wired frontend Research Hub to backend execution pipeline featuring real-time Server-Sent Events (SSE) streaming with a "backlog-replay" synchronization mechanism.
+- Converted Event Logger to dual-write architecture pushing JSONB log streams to PostgreSQL while concurrently feeding live connected clients.
+- Refactored `ResearchLayout.tsx` utilizing React Flow groups and CustomGroupNode, allowing intricate nesting (collapsible `ticker_synthesis` sub-steps) and dynamically rendering node states (`running`, `failed`, `completed`) from active SSE logs.
+- Added `apscheduler` on backend startup exposing task scheduling CRUD, surfaced in the UI via the "Schedule" button on the Research header.
+- Resolved layout overflows preventing the unified sidebar (Run History/Discovery Desk) from correctly collapsing alongside the Orchestration Graph, and confined the Evidence Drawer properly beneath the header.
+- *Why:* Enables operators to seamlessly trigger, monitor, and retroactively review large asynchronous agentic pipelines while maintaining high-fidelity UI states independent of backend scale limits.
+
+### [2026-07-25] — Configured Gemma 4 e4b as Default Local Ollama Model
+- Added `gemma4:e4b` ("Gemma 4 e4b (Local)") alongside `qwen3.5:latest` ("Qwen 3.5 (Local)") to UI model configuration options in `models.ts`, `App.tsx`, and `SettingsZone.tsx`.
+- Updated default local model setting in `config.py` and `.env` to `gemma4:e4b`.
+- Updated research synthesis node fallback provider to dynamically use local Ollama config.
 - Built `ResearchRunLogger` (`backend/app/research/logger.py`) to record structured JSON Lines (`.jsonl`) events to `logs/research/{run_id}.jsonl`.
 - Instrumented key graph nodes (`discovery`, `triage`, `reconciliation`, `persist`, `workflow`) to capture LLM call traces, API traffic metrics, sufficiency gating scores, and exception tracebacks.
 - Added `GET /research/logs/{run_id}` REST endpoint allowing developer log inspection with filtering by `node` or `event_type`.

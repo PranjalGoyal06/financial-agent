@@ -36,7 +36,7 @@ async def _reconcile_ticker(ticker: str, current_synthesis: str) -> tuple[str, s
         ("user", "Prior Research:\n{prior}\n\nCurrent Research:\n{current}")
     ])
     
-    model = get_structured_model(DriftReport, temperature=0.1)
+    model = get_structured_model(DriftReport, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
     
     try:
         res: DriftReport = await (prompt | model).ainvoke({

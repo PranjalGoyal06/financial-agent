@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -102,7 +104,7 @@ class MarketSnapshotModel(Base):
     params_hash: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True
     )  # SHA-256 of (ticker, type, range, interval)
-    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default='{}')
     provider: Mapped[str] = mapped_column(String(40), nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
@@ -180,7 +182,7 @@ class Artifact(Base):
     tags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     # JSON array of strings
     
-    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default='{}')
     # JSON dictionary for dynamic fields (e.g., target, recommendation, evidence_pack_json)
     
     user_id: Mapped[str | None] = mapped_column(
@@ -217,3 +219,39 @@ class AuditEventModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, nullable=False, index=True
     )
+
+
+class ResearchRunModel(Base):
+    __tablename__ = "research_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ResearchRunEventModel(Base):
+    """Replaces the JSONL log file as the durable source of truth for run state."""
+    __tablename__ = "research_run_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    run_id: Mapped[str] = mapped_column(ForeignKey("research_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    node: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    target: Mapped[str | None] = mapped_column(String(40), index=True)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    level: Mapped[str] = mapped_column(String(20), nullable=False, default="INFO")
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default='{}')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class ResearchScheduleModel(Base):
+    __tablename__ = "research_schedules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    cron_expression: Mapped[str] = mapped_column(String(80), nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

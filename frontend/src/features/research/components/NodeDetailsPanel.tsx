@@ -11,7 +11,7 @@ export function NodeDetailsPanel({ nodeData, onClose }: NodeDetailsPanelProps) {
   if (!nodeData) return null;
 
   return (
-    <div className="research-panel">
+    <div className="research-panel" style={{ position: 'absolute', top: 0, right: 0, bottom: 0 }}>
       <div className="research-panel__header">
         <div>
           <h2 className="research-panel__title">{nodeData.label}</h2>

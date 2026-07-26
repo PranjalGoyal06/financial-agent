@@ -47,6 +47,13 @@ export const AVAILABLE_MODELS: ModelConfig[] = [
   },
   // Ollama Local
   {
+    id: "ollama:gemma4:e4b",
+    provider: "ollama",
+    model: "gemma4:e4b",
+    label: "Gemma 4 e4b (Local)",
+    group: "Ollama Local",
+  },
+  {
     id: "ollama:qwen3.5:latest",
     provider: "ollama",
     model: "qwen3.5:latest",

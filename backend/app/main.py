@@ -38,7 +38,10 @@ from app.schemas import ChatHealthResponse, ChatRequest, ServiceStatus
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await init_db()
+    from app.research.scheduler import start_scheduler, stop_scheduler
+    await start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

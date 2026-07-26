@@ -113,7 +113,7 @@ async def _extract_spillover(state: ResearchState, exclude_tickers: set[str]) ->
         ("user", "{text}")
     ])
     
-    model = get_structured_model(SpilloverExtraction, temperature=0.1)
+    model = get_structured_model(SpilloverExtraction, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
     chain = prompt | model
     
     try:
@@ -201,7 +201,7 @@ async def discover_screen(state: ResearchState) -> dict:
     logger.info(f"Discover Screen: Found {len(all_candidates)} raw candidates. Grading...")
     
     # 2. Grade candidates (using local LLM)
-    grade_model = get_structured_model(CandidateGrading, temperature=0.2)
+    grade_model = get_structured_model(CandidateGrading, temperature=0.2, provider="ollama_cloud", fallback_provider="ollama")
     grade_tasks = [_grade_candidate(c, grade_model) for c in all_candidates]
     graded_results = await asyncio.gather(*grade_tasks)
     

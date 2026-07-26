@@ -992,6 +992,7 @@ export function App() {
                     <option value="groq:llama-3.3-70b-versatile">Groq (Llama 3.3 70B)</option>
                   </optgroup>
                   <optgroup label="Ollama Local">
+                    <option value="ollama:gemma4:e4b">Gemma 4 e4b (Local)</option>
                     <option value="ollama:qwen3.5:latest">Qwen 3.5 (Local)</option>
                   </optgroup>
                 </select>

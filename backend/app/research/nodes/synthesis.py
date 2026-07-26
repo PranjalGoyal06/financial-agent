@@ -36,7 +36,7 @@ async def macro_synthesis_node(state: ResearchState) -> dict:
 
     logger.info("Executing Macro Synthesis...")
     messages = get_macro_messages(pack)
-    model = get_structured_model(MacroSynthesis, temperature=0.1)
+    model = get_structured_model(MacroSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
     
     try:
         res = await model.ainvoke(messages)
@@ -62,7 +62,7 @@ async def _run_sector_synthesis(sector: str, state: ResearchState) -> tuple[str,
 
     logger.info("Executing Sector Synthesis for: %s", sector)
     messages = get_sector_messages(sector, pack)
-    model = get_structured_model(SectorSynthesis, temperature=0.1)
+    model = get_structured_model(SectorSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
 
     try:
         res = await model.ainvoke(messages)
@@ -112,8 +112,6 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
         logger.warning("No evidence for ticker %r. Skipping synthesis.", ticker)
         return ticker, None
         
-    # Check if there was insufficient data via triage node (we can just check if pack has items, but wait, triage might pass items but we want to know if it failed. We skip that for now and just rely on pack empty or not. Actually, let's see if we should enforce it).
-    
     sector = state.get("ticker_to_sector", {}).get(ticker)
     sector_summary = "DEGRADED_MACRO_ONLY: Sector context not available for discovered ticker."
     if sector:
@@ -126,12 +124,12 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
     # Pre-render evidence
     evidence_text = "\n".join(f"[{item.id}] {item.summary}" for item in pack.items)
 
-    # 3a. Draft Thesis (Bear-case first)
+    # 3a. Draft Thesis (Bear-case first - Tier 2 Nemotron)
     draft_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are an equity analyst. Draft a comprehensive thesis. Crucially, start with the BEAR CASE and KILL THE COMPANY risk before any bull case. Return the TickerSynthesis JSON."),
         ("user", "Ticker: {ticker}\nSector Context: {sector_summary}\n\nEvidence:\n{evidence}")
     ])
-    draft_model = get_structured_model(TickerSynthesis, temperature=0.1)
+    draft_model = get_structured_model(TickerSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
     
     try:
         draft: TickerSynthesis = await (draft_prompt | draft_model).ainvoke({
@@ -143,12 +141,12 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
         logger.error("Ticker %s draft synthesis failed: %s", ticker, exc)
         return ticker, None
 
-    # 3b. Adversarial Critique
+    # 3b. Adversarial Critique (Tier 2 Nemotron)
     critique_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a red-team analyst. Critique this draft thesis. Identify logical leaps, missing risks, or unwarranted optimism. Extract weaknesses as a list of strings."),
         ("user", "Draft Thesis:\n{draft}\n\nEvidence:\n{evidence}")
     ])
-    critique_model = get_structured_model(_DraftCritique, temperature=0.2)
+    critique_model = get_structured_model(_DraftCritique, temperature=0.2, provider="ollama_cloud", fallback_provider="ollama")
     
     try:
         critique_res: _DraftCritique = await (critique_prompt | critique_model).ainvoke({
@@ -160,12 +158,12 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
         logger.warning("Ticker %s critique failed: %s", ticker, exc)
         critiques = []
 
-    # 3c. Revised Thesis
+    # 3c. Revised Thesis (Tier 2 Nemotron)
     revise_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are the original equity analyst. Revise your draft thesis to address the red-team critiques. Defend your stance or adjust your recommendation/confidence. Return the TickerSynthesis JSON."),
         ("user", "Draft Thesis:\n{draft}\n\nCritiques:\n{critiques}\n\nEvidence:\n{evidence}")
     ])
-    revise_model = get_structured_model(TickerSynthesis, temperature=0.1)
+    revise_model = get_structured_model(TickerSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
     
     try:
         revised: TickerSynthesis = await (revise_prompt | revise_model).ainvoke({
@@ -177,8 +175,7 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
         logger.error("Ticker %s revise synthesis failed: %s", ticker, exc)
         return ticker, None
 
-    # 3d. Frontier Judgment (CIO)
-    # Uses gemini by default, with max_retries=3 and fallback to ollama_cloud
+    # 3d. Frontier Judgment (CIO - Tier 3 Gemini)
     cio_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are the Chief Investment Officer. Review the analyst's revised thesis. You hold final veto power. Adjust the recommendation or confidence if the evidence doesn't support the analyst's conviction. Explicitly state what changed and why. Return the FrontierTickerSynthesis JSON."),
         ("user", "Revised Thesis:\n{revised}\n\nEvidence:\n{evidence}")
@@ -234,7 +231,15 @@ async def ticker_synthesis_node(state: ResearchState) -> dict:
     if not tickers:
         return {}
 
-    tasks = [_run_ticker_synthesis(tick, state) for tick in tickers]
+    sem = asyncio.Semaphore(2)
+
+    async def _paced_synthesis(ticker_symbol: str):
+        async with sem:
+            res = await _run_ticker_synthesis(ticker_symbol, state)
+            await asyncio.sleep(1.0)
+            return res
+
+    tasks = [_paced_synthesis(tick) for tick in tickers]
     results = await asyncio.gather(*tasks)
 
     updates: dict = {}
@@ -365,7 +370,7 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
         correlation_matrix=correlation_matrix,
         pack=pack,
     )
-    model = get_structured_model(PortfolioSynthesis, temperature=0.1)
+    model = get_structured_model(PortfolioSynthesis, temperature=0.1, provider="gemini", fallback_provider="ollama_cloud")
 
     try:
         res = await model.ainvoke(messages)

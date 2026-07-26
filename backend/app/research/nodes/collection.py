@@ -37,7 +37,7 @@ async def _generate_queries(prompt_text: str, max_queries: int = 3) -> list[str]
         ("user", "{topic}")
     ])
     
-    model = get_structured_model(SearchQueries, temperature=0.1)
+    model = get_structured_model(SearchQueries, temperature=0.1, provider="ollama", fallback_provider="ollama_cloud")
     chain = prompt | model
     
     try:

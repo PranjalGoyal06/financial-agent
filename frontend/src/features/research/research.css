@@ -271,10 +271,6 @@
 
 /* Panels */
 .research-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
   width: 380px;
   background: var(--surface);
   border-left: 1px solid var(--line);
@@ -282,6 +278,7 @@
   display: flex;
   flex-direction: column;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .research-panel__header {

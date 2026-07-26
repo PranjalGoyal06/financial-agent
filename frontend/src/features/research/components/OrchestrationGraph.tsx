@@ -28,6 +28,32 @@ export function OrchestrationGraph({ nodes: initialNodes, edges: initialEdges, o
   const [nodes, setNodes] = React.useState<AppNode[]>(initialNodes);
   const [edges, setEdges] = React.useState<Edge[]>(initialEdges);
 
+  React.useEffect(() => {
+    setNodes((currentNodes) => {
+      // Merge incoming node data (status, label, etc) but keep local state (collapsed, hidden, position)
+      return initialNodes.map(inNode => {
+        const curr = currentNodes.find(n => n.id === inNode.id);
+        if (curr) {
+          return {
+            ...inNode,
+            position: curr.position,
+            hidden: curr.hidden,
+            style: curr.style,
+            data: {
+              ...inNode.data,
+              collapsed: curr.data.collapsed
+            }
+          };
+        }
+        return inNode;
+      });
+    });
+  }, [initialNodes]);
+
+  React.useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges]);
+
   const onNodesChange = React.useCallback(
     (changes: NodeChange<AppNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
     []

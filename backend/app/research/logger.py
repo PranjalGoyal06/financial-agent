@@ -1,61 +1,84 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
-import os
-import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Literal
+
+from app.db import AsyncSessionLocal
+from app.models import ResearchRunEventModel
 
 logger = logging.getLogger(__name__)
 
-# Base directory for research log files
-LOGS_DIR = Path("logs/research")
+
+# Global dictionary of active SSE queues keyed by run_id
+_SSE_QUEUES: dict[str, asyncio.Queue] = {}
 
 
 class ResearchRunLogger:
     """System-level (Tier-1) logger for a deep research run.
     
-    Writes structured JSON Lines (.jsonl) events to `logs/research/{run_id}.jsonl`.
+    Writes structured events to the database and pushes to an active SSE Queue.
     """
 
     def __init__(self, run_id: str):
         self.run_id = run_id
-        self.log_file_path = LOGS_DIR / f"{run_id}.jsonl"
-        self._ensure_dir()
 
-    def _ensure_dir(self) -> None:
-        """Ensure the logs directory exists."""
+    async def _async_db_write(self, event_dict: dict[str, Any]) -> None:
         try:
-            LOGS_DIR.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            logger.warning(f"Could not create research logs directory {LOGS_DIR}: {e}")
+            async with AsyncSessionLocal() as session:
+                db_event = ResearchRunEventModel(
+                    run_id=event_dict["run_id"],
+                    node=event_dict["node"],
+                    target=event_dict.get("target"),
+                    event_type=event_dict["event_type"],
+                    level=event_dict["level"],
+                    summary=event_dict["summary"],
+                    payload_json=event_dict["payload"],
+                )
+                session.add(db_event)
+                await session.commit()
+        except Exception as exc:
+            logger.error(f"Failed writing Tier-1 research log for run {self.run_id} to DB: {exc}")
 
     def log_event(
         self,
         node: str,
-        event_type: Literal["node_start", "node_complete", "llm_call", "api_traffic", "triage_gate", "drift_report", "exception"],
+        event_type: Literal["node_start", "node_complete", "llm_call", "api_traffic", "triage_gate", "drift_report", "exception", "run_completed", "run_failed"],
         summary: str,
         payload: dict[str, Any] | None = None,
         level: Literal["INFO", "WARNING", "ERROR", "DEBUG"] = "INFO",
+        target: str | None = None,
     ) -> None:
-        """Write a structured event to the run's JSONL log file."""
+        """Write a structured event to the run's DB table and SSE queue."""
         event = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "run_id": self.run_id,
             "node": node,
+            "target": target,
             "level": level,
             "event_type": event_type,
             "summary": summary,
             "payload": payload or {},
         }
 
+        # 1. Push to SSE Queue if exists
+        queue = _SSE_QUEUES.get(self.run_id)
+        if queue is not None:
+            try:
+                queue.put_nowait(event)
+            except Exception as e:
+                logger.error(f"Failed to push event to SSE queue for run {self.run_id}: {e}")
+
+        # 2. Write to DB asynchronously in the background
         try:
-            with open(self.log_file_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(event) + "\n")
-        except Exception as exc:
-            logger.error(f"Failed writing Tier-1 research log for run {self.run_id}: {exc}")
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._async_db_write(event))
+        except RuntimeError:
+            # If no running loop, we can't write to DB in the background like this.
+            # This shouldn't happen during a FastAPI request/background task.
+            logger.error(f"No running event loop to write DB event for run {self.run_id}")
 
     def log_llm_call(
         self,
@@ -66,6 +89,7 @@ class ResearchRunLogger:
         latency_ms: float | None = None,
         status: Literal["SUCCESS", "FAILED", "FALLBACK"] = "SUCCESS",
         metadata: dict[str, Any] | None = None,
+        target: str | None = None,
     ) -> None:
         """Log an internal LLM call trace."""
         payload = {
@@ -85,6 +109,7 @@ class ResearchRunLogger:
             summary=f"LLM Call ({model_name}) -> {status}",
             payload=payload,
             level=level,
+            target=target,
         )
 
     def log_api_traffic(
@@ -94,6 +119,7 @@ class ResearchRunLogger:
         target_or_query: str,
         items_count_or_status: Any,
         latency_ms: float | None = None,
+        target: str | None = None,
     ) -> None:
         """Log market data or search engine API traffic."""
         payload = {
@@ -108,9 +134,10 @@ class ResearchRunLogger:
             summary=f"API Call [{provider}] for '{target_or_query}'",
             payload=payload,
             level="INFO",
+            target=target,
         )
 
-    def log_exception(self, node: str, exception: Exception, context: str = "") -> None:
+    def log_exception(self, node: str, exception: Exception, context: str = "", target: str | None = None) -> None:
         """Log an exception trace."""
         payload = {
             "exception_type": type(exception).__name__,
@@ -123,6 +150,7 @@ class ResearchRunLogger:
             summary=f"Exception in node {node}: {exception}",
             payload=payload,
             level="ERROR",
+            target=target,
         )
 
 
@@ -137,19 +165,14 @@ def get_run_logger(run_id: str) -> ResearchRunLogger:
     return _LOGGERS[run_id]
 
 
-def read_run_logs(run_id: str) -> list[dict[str, Any]]:
-    """Reads and parses the JSONL log file for a run_id."""
-    file_path = LOGS_DIR / f"{run_id}.jsonl"
-    if not file_path.exists():
-        return []
+def get_sse_queue(run_id: str) -> asyncio.Queue:
+    """Retrieve or create an SSE Queue for a specific run_id."""
+    if run_id not in _SSE_QUEUES:
+        _SSE_QUEUES[run_id] = asyncio.Queue()
+    return _SSE_QUEUES[run_id]
 
-    events = []
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    events.append(json.loads(line))
-    except Exception as exc:
-        logger.error(f"Error reading Tier-1 log file for run {run_id}: {exc}")
-    return events
+
+def cleanup_sse_queue(run_id: str) -> None:
+    """Remove the SSE Queue for a run_id to free memory."""
+    _SSE_QUEUES.pop(run_id, None)
+

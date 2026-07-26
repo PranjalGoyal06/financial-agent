@@ -78,11 +78,11 @@ dev/
 | `GROQ_API_KEY`    | —                                                 | Groq Cloud API key                  |
 | `GROQ_MODEL`      | —                                                 | Groq model override                 |
 | `GEMINI_API_KEY`  | —                                                 | Google Gemini API key               |
-| `GEMINI_MODEL`    | `gemini-1.5-flash`                                | Gemini model name                   |
+| `GEMINI_MODEL`    | `gemini-2.0-flash`                                | Gemini model name                   |
 | `OLLAMA_BASE_URL` | `http://localhost:11434`                           | Local Ollama endpoint               |
-| `OLLAMA_MODEL`    | `qwen3.5:latest`                                  | Ollama model name                   |
+| `OLLAMA_MODEL`    | `gemma4:e4b`                                      | Ollama model name                   |
 | `OLLAMA_CLOUD_BASE_URL` | —                                           | Remote Ollama Cloud endpoint        |
-| `OLLAMA_CLOUD_MODEL`    | `qwen3.5:latest`                            | Ollama Cloud model name             |
+| `OLLAMA_CLOUD_MODEL`    | `nemotron`                                  | Ollama Cloud model name             |
 | `OLLAMA_CLOUD_API_KEY`  | —                                           | Remote Ollama Cloud API key         |
 | `TAVILY_API_KEY`  | —                                                 | Tavily web search API key           |
 | `CHROMA_HOST`     | `localhost`                                        | ChromaDB host                       |
@@ -113,6 +113,11 @@ dev/
 | `GET`    | `/api/search/stocks`          | Local CSV-based stock autocomplete search              |
 | `POST`   | `/research/trigger`           | Kick off async deep research run                      |
 | `GET`    | `/research/status/{run_id}`   | Poll research run status                              |
+| `GET`    | `/research/stream/{run_id}`   | Live SSE stream for a research run with backlog replay|
+| `GET`    | `/research/events/{run_id}`   | Poll research run event history (fallback)            |
+| `GET`    | `/research/runs`              | Retrieve history of all research runs                 |
+| `POST`   | `/research/schedule`          | Schedule a recurring research run via APScheduler     |
+| `GET`    | `/research/schedules`         | List active research schedules                        |
 | `GET`    | `/research/recommendations`   | Latest ticker recommendations from research           |
 | `GET`    | `/research/artifact/{run_id}/{type}` | Fetch a stored research report             |
 | `GET`    | `/briefing/`                  | Generate morning briefing                             |
@@ -145,7 +150,10 @@ The endpoint accepts the raw FastAPI `Request` object and monitors `await raw_re
 | **MarketSnapshotModel** | `market_snapshots`  | `ticker`, `snapshot_type`, `params_hash` (unique), `payload_json`, `provider`, `fresh_until` |
 | **InstrumentModel**    | `instruments`        | `ticker` PK, `name`, `exchange`, `sector`, `industry`, `asset_class`, `aliases` (JSON) |
 | **WatchlistItem**      | `watchlist_items`    | `user_id` FK, `canonical_ticker`, `exchange`                               |
-| **ResearchArtifact**   | `research_artifacts` | `run_id`, `artifact_type` (macro/sector/ticker/portfolio), `target`, `content_markdown`, `evidence_pack_json`, `recommendation`, `confidence_score` |
+| **ResearchRunModel**   | `research_runs`      | `id`, `user_id`, `status` (`running`, `completed`, `failed`), `started_at`, `completed_at`, `error_message` |
+| **ResearchRunEventModel**| `research_run_events`| `id`, `run_id` FK, `node`, `event_type`, `payload_json` (JSONB), `timestamp` |
+| **ResearchScheduleModel**| `research_schedules` | `id`, `user_id`, `cron_expression`, `is_active`, `created_at`              |
+| **ResearchArtifact**   | `research_artifacts` | `run_id` FK, `artifact_type` (macro/sector/ticker/portfolio), `target`, `content_markdown`, `evidence_pack_json`, `recommendation`, `confidence_score` |
 
 ---
 

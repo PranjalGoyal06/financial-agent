@@ -24,7 +24,7 @@ async def _generate_follow_up(ticker: str, pack_summary: str) -> list[str]:
         ("user", f"Ticker: {ticker}\n\nCurrent Evidence Summary:\n{pack_summary}")
     ])
     
-    model = get_structured_model(FollowUpQueries, temperature=0.1)
+    model = get_structured_model(FollowUpQueries, temperature=0.1, provider="ollama", fallback_provider="ollama_cloud")
     chain = prompt | model
     
     try:
