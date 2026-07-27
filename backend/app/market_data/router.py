@@ -17,7 +17,7 @@ from app.market_data.provider import (
 from app.market_data.resolver import resolve_asset
 from app.market_data.schemas import AssetResolution, HistoricalDataResponse, MarketQuote
 
-router = APIRouter(prefix="/tools", tags=["market-data"])
+router = APIRouter(prefix="/api/tools", tags=["market-data"])
 
 # Singleton provider — stateless, safe to share across requests.
 _provider = YFinanceProvider()

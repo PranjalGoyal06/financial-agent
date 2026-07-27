@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -78,6 +78,7 @@ class EvidencePack(BaseModel):
     target: str  # canonical_ticker / sector name / "macro" / "portfolio"
     items: list[EvidenceItem] = Field(default_factory=list)
     created_at: datetime
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     # ── convenience helpers ────────────────────────────────────────────────────
 

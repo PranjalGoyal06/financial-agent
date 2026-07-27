@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 // Types matching the backend /briefing response
 type GreetingData = {
@@ -70,6 +71,7 @@ function formatAmount(val: number): string {
 }
 
 export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneProps) {
+  const navigate = useNavigate();
   const [data, setData] = useState<BriefingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneP
   useEffect(() => {
     async function fetchBriefing() {
       try {
-        const res = await fetch("/briefing");
+        const res = await fetch("/api/briefing");
         if (!res.ok) throw new Error("Failed to load briefing");
         const json = await res.json();
         setData(json);
@@ -171,7 +173,14 @@ export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneP
         </div>
         
         {action_desk.cards.length === 0 ? (
-          <div className="action-empty">Nothing crossed your threshold today.</div>
+          <div className="action-empty">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <p>Nothing crossed your threshold today.</p>
+            <button className="cta-btn" onClick={() => navigate('/research')}>Run research now</button>
+          </div>
         ) : (
           <div className="action-cards">
             {action_desk.cards.map((card, i) => (

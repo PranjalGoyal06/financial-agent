@@ -11,7 +11,7 @@ from app.briefing.service import get_briefing_data
 from app.config import settings
 from app.db import get_session
 
-router = APIRouter(prefix="/briefing", tags=["Briefing"])
+router = APIRouter(prefix="/api/briefing", tags=["Briefing"])
 
 # Simple in-memory cache: {user_id: (timestamp, BriefingResponse)}
 _BRIEFING_CACHE: Dict[str, Tuple[datetime, BriefingResponse]] = {}

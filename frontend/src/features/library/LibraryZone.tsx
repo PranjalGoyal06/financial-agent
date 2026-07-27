@@ -34,7 +34,7 @@ export function LibraryZone() {
 
   const fetchArtifacts = async () => {
     try {
-      const res = await fetch('http://localhost:8000/artifacts');
+      const res = await fetch('/api/artifacts');
       if (res.ok) {
         const data = await res.json();
         const mapped = data.artifacts.map((a: any) => {
@@ -81,7 +81,7 @@ export function LibraryZone() {
         metadata_json: { artifact_type: uploadType }
       };
       
-      const res = await fetch('http://localhost:8000/artifacts', {
+      const res = await fetch('/api/artifacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -103,7 +103,7 @@ export function LibraryZone() {
   const handleDelete = async (artifact: Artifact) => {
     if (!window.confirm(`Are you sure you want to delete "${artifact.title}"?`)) return;
     try {
-      const res = await fetch(`http://localhost:8000/artifacts/${artifact.id}`, {
+      const res = await fetch(`/api/artifacts/${artifact.id}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -119,7 +119,7 @@ export function LibraryZone() {
     if (!newTitle || newTitle.trim() === '' || newTitle === artifact.title) return;
     
     try {
-      const res = await fetch(`http://localhost:8000/artifacts/${artifact.id}`, {
+      const res = await fetch(`/api/artifacts/${artifact.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: newTitle.trim() })

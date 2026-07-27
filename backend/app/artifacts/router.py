@@ -15,7 +15,7 @@ from app.models import Artifact
 from app.research.store import save_artifact, delete_artifact, rename_artifact
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/artifacts", tags=["Artifacts"])
+router = APIRouter(prefix="/api/artifacts", tags=["Artifacts"])
 
 
 class ArtifactCreate(BaseModel):

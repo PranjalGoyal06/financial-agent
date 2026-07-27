@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 SCREENER_UNIVERSE = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
     "SBIN.NS", "INFY.NS", "LICI.NS", "ITC.NS", "HINDUNILVR.NS", "LT.NS",
-    "BAJFINANCE.NS", "HCLTECH.NS", "MARUTI.NS", "SUNPHARMA.NS", "TATAMOTORS.NS",
+    "BAJFINANCE.NS", "HCLTECH.NS", "MARUTI.NS", "SUNPHARMA.NS", "TMPV.NS",
     "TATASTEEL.NS", "KOTAKBANK.NS", "AXISBANK.NS", "ONGC.NS", "NTPC.NS",
     "M&M.NS", "POWERGRID.NS", "TITAN.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS",
     "BAJAJFINSV.NS", "ADANIENT.NS", "WIPRO.NS", "NESTLEIND.NS", "TECHM.NS"
@@ -46,7 +46,7 @@ def _run_local_screener(exclude_tickers: set[str]) -> list[dict[str, Any]]:
 
     try:
         # Download last 5 days of data
-        data = yf.download(targets, period="5d", group_by="ticker", progress=False)
+        data = yf.download(targets, period="5d", group_by="ticker", progress=False, auto_adjust=False, ignore_tz=True)
     except Exception as e:
         logger.warning(f"yfinance screener download failed: {e}")
         return []

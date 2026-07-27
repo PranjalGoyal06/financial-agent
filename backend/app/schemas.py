@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
+from typing import Any
 
 
 class ChatRequest(BaseModel):
@@ -29,3 +30,29 @@ class ChatHealthResponse(BaseModel):
     user_id: str
     runtime: str
     checks: dict[str, ServiceStatus] = Field(default_factory=dict)
+
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    role: str
+    content: str
+    thinking: str | None = None
+    tool_calls: dict[str, Any] | None = None
+    tool_call_id: str | None = None
+    tool_name: str | None = None
+    created_at: str
+
+
+class ChatSessionUpdateRequest(BaseModel):
+    title: str
+
+class ChatSessionResponse(BaseModel):
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    messages: list[ChatMessageResponse] = Field(default_factory=list)
+
+
+class ChatSessionListResponse(BaseModel):
+    sessions: list[ChatSessionResponse]

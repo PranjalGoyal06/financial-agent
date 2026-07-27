@@ -61,7 +61,7 @@ export function PortfolioZone() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/portfolio/valued")
+    fetch("/api/portfolio/valued")
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load portfolio valuation");
         return r.json();

@@ -1,41 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { RunHistorySidebar, RunHistoryItem } from './components/RunHistorySidebar';
+import { useParams, useNavigate } from 'react-router-dom';
 import { OrchestrationGraph } from './components/OrchestrationGraph';
-import { EvidenceDrawer, EvidenceItem } from './components/EvidenceDrawer';
 import { NodeDetailsPanel } from './components/NodeDetailsPanel';
-import { DiscoveryThesisView, DiscoveredTicker } from './components/DiscoveryThesisView';
-import { AppNode, GraphNodeData } from './components/GraphNode';
-import { FileText, Plus, Search, Activity, PanelLeftClose, PanelLeftOpen, Clock } from 'lucide-react';
+import { FileText, Plus, Activity, PanelLeftClose, PanelLeftOpen, Clock, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import './research.css';
 
 import { api, ResearchRun } from './api';
 import { useResearchRun } from './useResearchRun';
-
-// ── Mock Data ─────────────────────────────────────────────────────────────────
-
-const mockDiscoveries: DiscoveredTicker[] = [
-  { 
-    id: 'd1', 
-    ticker: 'ZOMATO', 
-    companyName: 'Zomato Ltd', 
-    date: 'Oct 26, 2026',
-    discoveryVector: 'Spillover from Swiggy IPO analysis indicated massive market share consolidation.',
-    thesis: 'Zomato has demonstrated sustained profitability over the last 3 quarters. The upcoming Swiggy IPO is bringing significant attention to the food delivery duopoly, where Zomato currently holds the edge in Blinkit (quick commerce) execution.\n\nKey drivers:\n1. Quick commerce achieving EBITDA break-even.\n2. Platform fee hikes driving pure margin expansion.\n3. Rationalized discount structures.'
-  },
-  { 
-    id: 'd2', 
-    ticker: 'SUZLON', 
-    companyName: 'Suzlon Energy', 
-    date: 'Oct 25, 2026',
-    discoveryVector: 'Macro sector rotation into renewable energy infrastructure detected.',
-    thesis: 'Debt restructuring is complete and the order book is at a multi-year high. Policy tailwinds for wind energy make this a strong turnaround candidate.'
-  }
-];
-
-const mockEvidence: EvidenceItem[] = [
-  { id: 'e1', type: 'url', title: 'Q3 Market Earnings Report', urlOrPath: 'https://example.com/q3', status: 'useful', snippet: 'The market saw a 12% increase...' },
-  { id: 'e2', type: 'document', title: 'Competitor PDF', urlOrPath: '#', status: 'discarded', reason: '404 Not Found' }
-];
 
 function formatTime(isoStr: string) {
   try {
@@ -46,29 +17,41 @@ function formatTime(isoStr: string) {
 }
 
 export function ResearchLayout() {
-  const [activeTab, setActiveTab] = useState<'runs' | 'discovery'>('runs');
+  const { runId } = useParams();
+  const navigate = useNavigate();
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // State for Runs view
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const selectedRunId = runId || null;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isEvidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
   const [isTriggering, setIsTriggering] = useState(false);
   const [runsList, setRunsList] = useState<ResearchRun[]>([]);
+  const [activeMenuRunId, setActiveMenuRunId] = useState<string | null>(null);
 
-  const { nodes, edges, events, runStatus } = useResearchRun(selectedRunId);
+  const { nodes, edges, runStatus } = useResearchRun(selectedRunId ?? null);
 
   // State for Watchlists
   const [watchlists, setWatchlists] = useState<import('./api').Watchlist[]>([]);
   const [selectedWatchlistId, setSelectedWatchlistId] = useState<string>('');
 
+  const fetchRuns = useCallback(async () => {
+    try {
+      const runsData = await api.getRuns();
+      setRunsList(runsData.runs);
+      return runsData.runs;
+    } catch (err) {
+      console.error("Failed to fetch runs", err);
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     // Fetch initial runs and watchlists
-    Promise.all([api.getRuns(), api.getWatchlists()])
-      .then(([runsData, watchlistsData]) => {
-        setRunsList(runsData.runs);
-        if (runsData.runs.length > 0) {
-          setSelectedRunId(runsData.runs[0].id);
+    Promise.all([fetchRuns(), api.getWatchlists()])
+      .then(([runs, watchlistsData]) => {
+        if (runs.length > 0 && !runId) {
+          navigate(`/research/${runs[0].id}`, { replace: true });
         }
         setWatchlists(watchlistsData.watchlists);
         const portfolioWl = watchlistsData.watchlists.find(w => w.type === 'portfolio');
@@ -78,11 +61,8 @@ export function ResearchLayout() {
           setSelectedWatchlistId(watchlistsData.watchlists[0].id);
         }
       })
-      .catch(err => console.error("Failed to fetch runs/watchlists", err));
-  }, []);
-
-  // State for Discovery view
-  const [selectedDiscoveryId, setSelectedDiscoveryId] = useState<string>('d1');
+      .catch(err => console.error("Failed to fetch initial data", err));
+  }, [runId, navigate, fetchRuns]);
 
   const handleTriggerNewRun = useCallback(async () => {
     setIsTriggering(true);
@@ -96,23 +76,53 @@ export function ResearchLayout() {
         completed_at: null,
       };
       setRunsList(prev => [newRun, ...prev]);
-      setSelectedRunId(data.run_id);
+      navigate(`/research/${data.run_id}`);
     } catch (e) {
       console.error('Failed to trigger research run', e);
     } finally {
       setIsTriggering(false);
     }
-  }, [selectedWatchlistId]);
+  }, [selectedWatchlistId, navigate]);
+
+  const handleRename = async (e: React.MouseEvent, id: string, currentTitle?: string | null) => {
+    e.stopPropagation();
+    setActiveMenuRunId(null);
+    const defaultName = currentTitle || `Run ${id.slice(-6)}`;
+    const newTitle = prompt('Enter new run title:', defaultName);
+    if (newTitle !== null && newTitle.trim() !== '') {
+      try {
+        await api.renameRun(id, newTitle.trim());
+        await fetchRuns();
+      } catch (err) {
+        alert('Failed to rename run');
+      }
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setActiveMenuRunId(null);
+    if (confirm('Are you sure you want to delete this run?')) {
+      try {
+        await api.deleteRun(id);
+        setRunsList(prev => prev.filter(r => r.id !== id));
+        if (selectedRunId === id) {
+          navigate('/research');
+        }
+      } catch (err) {
+        alert('Failed to delete run');
+      }
+    }
+  };
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId)?.data || null;
-  const selectedDiscovery = mockDiscoveries.find(d => d.id === selectedDiscoveryId) || null;
 
   const handleNodeClick = useCallback((id: string) => {
     setSelectedNodeId(id);
   }, []);
 
   return (
-    <div className="research-layout">
+    <div className="research-layout" onClick={() => setActiveMenuRunId(null)}>
       
       {/* Unified Sidebar Container */}
       <div className={`research-sidebar ${isSidebarCollapsed ? 'research-sidebar--collapsed' : ''}`} style={{ width: isSidebarCollapsed ? '56px' : '280px', transition: 'width 0.2s', display: 'flex', flexDirection: 'column', flexShrink: 0, borderRight: '1px solid var(--line)', background: 'var(--surface)', position: 'relative', zIndex: 10 }}>
@@ -125,206 +135,160 @@ export function ResearchLayout() {
           </button>
         </div>
 
-        {/* Tab Switchers */}
-        <div style={{ display: 'flex', flexDirection: isSidebarCollapsed ? 'column' : 'row', borderBottom: '1px solid var(--line)' }}>
-          <button 
-            onClick={() => setActiveTab('runs')}
-            style={{ flex: 1, padding: '12px', background: activeTab === 'runs' ? 'var(--surface-hover)' : 'transparent', border: 'none', borderBottom: activeTab === 'runs' && !isSidebarCollapsed ? '2px solid var(--blue)' : '2px solid transparent', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: activeTab === 'runs' ? 'var(--blue)' : 'var(--muted)' }}
-            title="Run History"
-          >
-            <Activity size={16} />
-            {!isSidebarCollapsed && <span style={{ fontSize: '13px', fontWeight: 600 }}>Runs</span>}
-          </button>
-          <button 
-            onClick={() => setActiveTab('discovery')}
-            style={{ flex: 1, padding: '12px', background: activeTab === 'discovery' ? 'var(--surface-hover)' : 'transparent', border: 'none', borderBottom: activeTab === 'discovery' && !isSidebarCollapsed ? '2px solid var(--blue)' : '2px solid transparent', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: activeTab === 'discovery' ? 'var(--blue)' : 'var(--muted)' }}
-            title="Discovery Desk"
-          >
-            <Search size={16} />
-            {!isSidebarCollapsed && <span style={{ fontSize: '13px', fontWeight: 600 }}>Discovery</span>}
-          </button>
-        </div>
-
         {/* List Content */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-          {activeTab === 'runs' ? (
-            <ul className="research-sidebar__list">
-              {runsList.map((run) => (
-                <li key={run.id}>
-                  <button
-                    onClick={() => setSelectedRunId(run.id)}
-                    className={`research-sidebar__item ${run.id === selectedRunId ? 'research-sidebar__item--selected' : ''}`}
-                    style={{ justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', padding: isSidebarCollapsed ? '16px 0' : '12px 16px' }}
-                    title={`Run ${run.id.slice(0,8)}`}
-                  >
-                    <div className="research-sidebar__item-icon">
-                      {run.status === 'running' ? <Activity size={16} color="var(--blue)" /> : (run.status === 'failed' ? <FileText size={16} color="var(--red)" /> : <FileText size={16} color="var(--green)" />)}
-                    </div>
-                    {!isSidebarCollapsed && (
-                      <div style={{ minWidth: 0, overflow: 'hidden', textAlign: 'left' }}>
-                        <div className="research-sidebar__item-title">Run {run.id.slice(-6)}</div>
-                        <div className="research-sidebar__item-meta">
-                          <span>{formatTime(run.started_at)}</span>
-                        </div>
+          <ul className="research-sidebar__list">
+            {runsList.map((run) => (
+              <li key={run.id} style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => navigate(`/research/${run.id}`)}
+                  className={`research-sidebar__item ${run.id === selectedRunId ? 'research-sidebar__item--selected' : ''}`}
+                  style={{ background: 'transparent', border: 'none', width: '100%', textAlign: 'left', padding: isSidebarCollapsed ? '12px' : '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }}
+                  title={run.title || `Run ${run.id.slice(0,8)}`}
+                >
+                  <div className="research-sidebar__item-icon">
+                    {run.status === 'running' ? <Activity size={16} color="var(--blue)" /> : (run.status === 'failed' ? <FileText size={16} color="var(--red)" /> : <FileText size={16} color="var(--green)" />)}
+                  </div>
+                  {!isSidebarCollapsed && (
+                    <div style={{ minWidth: 0, overflow: 'hidden', textAlign: 'left', flex: 1 }}>
+                      <div className="research-sidebar__item-title">{run.title || `Run ${run.id.slice(-6)}`}</div>
+                      <div className="research-sidebar__item-meta">
+                        <span>{formatTime(run.started_at)}</span>
                       </div>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <ul className="research-sidebar__list">
-              {mockDiscoveries.map((disc) => (
-                <li key={disc.id}>
-                  <button
-                    onClick={() => setSelectedDiscoveryId(disc.id)}
-                    className={`research-sidebar__item ${disc.id === selectedDiscoveryId ? 'research-sidebar__item--selected' : ''}`}
-                    style={{ justifyContent: isSidebarCollapsed ? 'center' : 'flex-start', padding: isSidebarCollapsed ? '16px 0' : '12px 16px' }}
-                    title={disc.ticker}
-                  >
-                    <div className="research-sidebar__item-icon">
-                      <Search size={16} color={disc.id === selectedDiscoveryId ? 'var(--blue)' : 'var(--muted)'} />
                     </div>
-                    {!isSidebarCollapsed && (
-                      <div style={{ minWidth: 0, overflow: 'hidden', textAlign: 'left' }}>
-                        <div className="research-sidebar__item-title">{disc.ticker}</div>
-                        <div className="research-sidebar__item-meta">
-                          <span>{disc.date}</span>
+                  )}
+                  {!isSidebarCollapsed && (
+                    <div className="research-sidebar__item-actions" onClick={e => e.stopPropagation()}>
+                      <button 
+                        className="research-btn-icon" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuRunId(activeMenuRunId === run.id ? null : run.id);
+                        }}
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+                      {activeMenuRunId === run.id && (
+                        <div className="research-menu-dropdown" style={{ position: 'absolute', right: '16px', top: '40px', background: 'var(--surface-raised)', border: '1px solid var(--line)', borderRadius: '6px', padding: '4px', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                          <button onClick={(e) => handleRename(e, run.id, run.title)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--foreground)', textAlign: 'left' }}>
+                            <Edit2 size={14} /> Rename
+                          </button>
+                          <button onClick={(e) => handleDelete(e, run.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--red)', textAlign: 'left' }}>
+                            <Trash2 size={14} /> Delete
+                          </button>
                         </div>
-                      </div>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                      )}
+                    </div>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
       
-      {activeTab === 'runs' ? (
-        <main className="research-main">
-          {/* Header Controls */}
-          <header className="research-header">
-            <div className="research-header__title">
-              Research Orchestrator
-              <span className={`research-badge ${runStatus === 'running' ? 'research-badge--running' : ''}`}>
-                {runStatus === 'running' ? 'Running...' : (runStatus === 'failed' ? 'Failed' : 'Completed')}
-              </span>
-            </div>
-            
-            <div className="research-header__actions">
-              {watchlists.length > 0 && (
-                <select 
-                  value={selectedWatchlistId} 
-                  onChange={e => setSelectedWatchlistId(e.target.value)}
-                  className="research-select"
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--line)',
-                    background: 'var(--surface)',
-                    color: 'var(--foreground)',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    marginRight: '8px'
-                  }}
-                >
-                  {watchlists.map(wl => (
-                    <option key={wl.id} value={wl.id}>
-                      {wl.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button 
-                onClick={() => setEvidenceDrawerOpen(!isEvidenceDrawerOpen)}
-                className="research-btn"
+      <main className="research-main">
+        {/* Header Controls */}
+        <header className="research-header">
+          <div className="research-header__title">
+            Research Orchestrator
+            <span className={`research-badge ${runStatus === 'running' ? 'research-badge--running' : ''}`}>
+              {runStatus === 'running' ? 'Running...' : (runStatus === 'failed' ? 'Failed' : 'Completed')}
+            </span>
+          </div>
+          
+          <div className="research-header__actions">
+            {watchlists.length > 0 && (
+              <select 
+                value={selectedWatchlistId} 
+                onChange={e => setSelectedWatchlistId(e.target.value)}
+                className="research-select"
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--line)',
+                  background: 'var(--surface)',
+                  color: 'var(--foreground)',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  marginRight: '8px'
+                }}
               >
-                <FileText size={16} />
-                Evidence
-              </button>
-              <button 
+                {watchlists.map(wl => (
+                  <option key={wl.id} value={wl.id}>
+                    {wl.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button 
+              onClick={async () => {
+                const cron = prompt('Enter a cron expression to schedule a daily run (e.g., "0 17 * * 1-5" for 5 PM weekdays):', '0 17 * * 1-5');
+                if (cron) {
+                  try {
+                    await api.scheduleRun(cron, selectedWatchlistId || undefined);
+                    alert('Run scheduled successfully!');
+                  } catch (e) {
+                    alert('Failed to schedule run.');
+                  }
+                }
+              }}
+              className="research-btn"
+            >
+              <Clock size={16} />
+              Schedule
+            </button>
+            <button 
+              onClick={handleTriggerNewRun}
+              disabled={isTriggering}
+              className="research-btn research-btn--primary"
+            >
+              <Plus size={16} />
+              {isTriggering ? 'Starting...' : 'New Run'}
+            </button>
+            {runStatus === 'running' && (
+              <button
                 onClick={async () => {
-                  const cron = prompt('Enter a cron expression to schedule a daily run (e.g., "0 17 * * 1-5" for 5 PM weekdays):', '0 17 * * 1-5');
-                  if (cron) {
-                    try {
-                      await api.scheduleRun(cron, selectedWatchlistId || undefined);
-                      alert('Run scheduled successfully!');
-                    } catch (e) {
-                      alert('Failed to schedule run.');
-                    }
+                  if (!selectedRunId) return;
+                  try {
+                    await api.cancelRun(selectedRunId);
+                  } catch (e) {
+                    alert('Failed to cancel run.');
                   }
                 }}
                 className="research-btn"
+                style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
               >
-                <Clock size={16} />
-                Schedule
+                Stop Run
               </button>
-              <button 
-                onClick={handleTriggerNewRun}
-                disabled={isTriggering}
-                className="research-btn research-btn--primary"
-              >
-                <Plus size={16} />
-                {isTriggering ? 'Starting...' : 'New Run'}
-              </button>
-              {runStatus === 'running' && (
-                <button
-                  onClick={async () => {
-                    if (!selectedRunId) return;
-                    try {
-                      await api.cancelRun(selectedRunId);
-                    } catch (e) {
-                      alert('Failed to cancel run.');
-                    }
-                  }}
-                  className="research-btn"
-                  style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                >
-                  Stop Run
-                </button>
-              )}
-            </div>
-          </header>
-
-          {/* Graph Area */}
-          <div className="research-graph-container" style={{ display: 'flex', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ flex: 1, position: 'relative' }}>
-              {selectedRunId ? (
-                <OrchestrationGraph
-                  nodes={nodes}
-                  edges={edges}
-                  onNodeClick={handleNodeClick}
-                />
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--muted)' }}>
-                  No run selected.
-                </div>
-              )}
-              
-              {selectedNodeId && (
-                <NodeDetailsPanel
-                  nodeData={selectedNode}
-                  onClose={() => setSelectedNodeId(null)}
-                />
-              )}
-            </div>
-            
-            <EvidenceDrawer
-              isOpen={isEvidenceDrawerOpen}
-              onClose={() => setEvidenceDrawerOpen(false)}
-              evidence={mockEvidence}
-            />
+            )}
           </div>
-        </main>
-      ) : (
-        <DiscoveryThesisView 
-          ticker={selectedDiscovery} 
-          onAddToWatchlist={(id) => console.log('Added to watchlist', id)}
-          onDismiss={(id) => console.log('Dismissed', id)}
-        />
-      )}
+        </header>
+
+        {/* Graph Area */}
+        <div className="research-graph-container" style={{ display: 'flex', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            {selectedRunId ? (
+              <OrchestrationGraph
+                nodes={nodes}
+                edges={edges}
+                onNodeClick={handleNodeClick}
+              />
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--muted)' }}>
+                No run selected.
+              </div>
+            )}
+            
+            {selectedNodeId && (
+              <NodeDetailsPanel
+                nodeData={selectedNode}
+                onClose={() => setSelectedNodeId(null)}
+              />
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
-

@@ -80,7 +80,7 @@ export function useResearchRun(runId: string | null) {
     setRunStatus('running');
     setNodeStatusMap({});
 
-    const eventSource = new EventSource(`/research/stream/${runId}`);
+    const eventSource = new EventSource(`/api/research/stream/${runId}`);
     
     eventSource.addEventListener('node_event', (e: MessageEvent) => {
       const data: ResearchRunEvent = JSON.parse(e.data);
@@ -91,6 +91,9 @@ export function useResearchRun(runId: string | null) {
         eventSource.close();
       } else if (data.event_type === 'run_failed') {
         setRunStatus('failed');
+        eventSource.close();
+      } else if (data.event_type === 'run_cancelled') {
+        setRunStatus('cancelled');
         eventSource.close();
       } else if (data.event_type === 'node_start') {
         setNodeStatusMap(prev => ({ ...prev, [data.node]: 'running' }));

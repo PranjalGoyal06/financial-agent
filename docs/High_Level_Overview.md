@@ -42,7 +42,10 @@ dev/
 ├── frontend/
 │   ├── src/
 │   │   ├── main.tsx            # React entry point
-│   │   ├── App.tsx             # App shell, chat, sidebar, portfolio drawer
+│   │   ├── App.tsx             # App routing shell, sidebar layout, portfolio drawer
+│   │   ├── pages/
+│   │   │   ├── Home.tsx        # Default landing page with briefing and chat entry
+│   │   │   └── ChatPage.tsx    # Dedicated persistent chat experience (`/chat/:id`)
 │   │   ├── components/         # Reusable UI components (e.g., StockSearch.tsx)
 │   │   ├── PortfolioZone.tsx   # Portfolio dashboard tab
 │   │   ├── BriefingZone.tsx    # Morning briefing tab
@@ -102,28 +105,33 @@ dev/
 
 | Method   | Path                          | Purpose                                               |
 | -------- | ----------------------------- | ----------------------------------------------------- |
-| `GET`    | `/health`                     | Health check + runtime info                           |
-| `POST`   | `/chat`                       | SSE-streamed chat with the ReAct agent                |
-| `GET`    | `/portfolio`                  | Raw portfolio holdings for a user                     |
-| `GET`    | `/portfolio/quotes`           | Live quotes + sparklines for held tickers             |
-| `GET`    | `/portfolio/valued`           | Full valued portfolio with P&L + research recs        |
-| `POST`   | `/portfolio/upload`           | Tradebook CSV upload → FIFO lot-matching → save       |
-| `GET`    | `/tools/resolve-asset`        | Free-text → NSE/BSE ticker resolution *(market_data)* |
-| `GET`    | `/tools/quote`                | Cached stock price snapshot *(market_data)*            |
-| `GET`    | `/tools/historical-data`      | Cached OHLCV bars *(market_data)*                      |
+| `GET`    | `/api/health`                     | Health check + runtime info                           |
+| `POST`   | `/api/chat`                       | SSE-streamed chat with the ReAct agent                |
+| `GET`    | `/api/chat/sessions`              | List persistent chat sessions                         |
+| `POST`   | `/api/chat/sessions`              | Create a new persistent chat session                  |
+| `GET`    | `/api/chat/sessions/{id}`         | Load historical messages for a chat session           |
+| `GET`    | `/api/portfolio`                  | Raw portfolio holdings for a user                     |
+| `GET`    | `/api/portfolio/quotes`           | Live quotes + sparklines for held tickers             |
+| `GET`    | `/api/portfolio/valued`           | Full valued portfolio with P&L + research recs        |
+| `POST`   | `/api/portfolio/upload`           | Tradebook CSV upload → FIFO lot-matching → save       |
+| `GET`    | `/api/tools/resolve-asset`        | Free-text → NSE/BSE ticker resolution *(market_data)* |
+| `GET`    | `/api/tools/quote`                | Cached stock price snapshot *(market_data)*            |
+| `GET`    | `/api/tools/historical-data`      | Cached OHLCV bars *(market_data)*                      |
 | `GET`    | `/api/search/stocks`          | Local CSV-based stock autocomplete search              |
-| `POST`   | `/research/trigger`           | Kick off async deep research run                      |
-| `GET`    | `/research/status/{run_id}`   | Poll research run status                              |
-| `GET`    | `/research/stream/{run_id}`   | Live SSE stream for a research run with backlog replay|
-| `GET`    | `/research/events/{run_id}`   | Poll research run event history (fallback)            |
-| `GET`    | `/research/runs`              | Retrieve history of all research runs                 |
-| `POST`   | `/research/schedule`          | Schedule a recurring research run via APScheduler     |
-| `GET`    | `/research/schedules`         | List active research schedules                        |
-| `GET`    | `/research/recommendations`   | Latest ticker recommendations from research           |
-| `GET`    | `/research/artifact/{run_id}/{type}` | Fetch a stored research report             |
-| `GET`    | `/briefing/`                  | Generate morning briefing                             |
+| `POST`   | `/api/research/trigger`           | Kick off async deep research run                      |
+| `GET`    | `/api/research/status/{run_id}`   | Poll research run status                              |
+| `GET`    | `/api/research/stream/{run_id}`   | Live SSE stream for a research run with backlog replay|
+| `GET`    | `/api/research/events/{run_id}`   | Poll research run event history (fallback)            |
+| `GET`    | `/api/research/runs`              | Retrieve history of all research runs                 |
+| `PATCH`  | `/api/research/runs/{run_id}`     | Rename a historical research run                      |
+| `DELETE` | `/api/research/runs/{run_id}`     | Delete a historical research run                      |
+| `POST`   | `/api/research/schedule`          | Schedule a recurring research run via APScheduler     |
+| `GET`    | `/api/research/schedules`         | List active research schedules                        |
+| `GET`    | `/api/research/recommendations`   | Latest ticker recommendations from research           |
+| `GET`    | `/api/research/artifact/{run_id}/{type}` | Fetch a stored research report             |
+| `GET`    | `/api/briefing/`                  | Generate morning briefing                             |
 
-**SSE Chat Protocol** (`POST /chat`):
+**SSE Chat Protocol** (`POST /api/chat`):
 The chat endpoint returns a `text/event-stream` with these event types:
 - `run_start` — agent invocation begun
 - `token` — incremental LLM token
@@ -152,7 +160,7 @@ The endpoint accepts the raw FastAPI `Request` object and monitors `await raw_re
 | **InstrumentModel**    | `instruments`        | `ticker` PK, `name`, `exchange`, `sector`, `industry`, `asset_class`, `aliases` (JSON) |
 | **WatchlistModel**     | `watchlists`         | `id`, `user_id` FK, `name`, `slug`, `type` (`portfolio`, `custom`), timestamps |
 | **WatchlistItem**      | `watchlist_items`    | `id`, `watchlist_id` FK, `canonical_ticker`, `exchange`                               |
-| **ResearchRunModel**   | `research_runs`      | `id`, `user_id`, `watchlist_id` FK, `status` (`running`, `completed`, `failed`), `started_at`, `completed_at`, `error_message` |
+| **ResearchRunModel**   | `research_runs`      | `id`, `user_id`, `watchlist_id` FK, `title`, `status` (`running`, `completed`, `failed`), `started_at`, `completed_at`, `error_message` |
 | **ResearchRunEventModel**| `research_run_events`| `id`, `run_id` FK, `node`, `event_type`, `payload_json` (JSONB), `timestamp` |
 | **ResearchScheduleModel**| `research_schedules` | `id`, `user_id`, `cron_expression`, `is_active`, `created_at`              |
 | **ResearchArtifact**   | `research_artifacts` | `run_id` FK, `artifact_type` (macro/sector/ticker/portfolio), `target`, `content_markdown`, `evidence_pack_json`, `recommendation`, `confidence_score` |
@@ -256,10 +264,10 @@ tickers and sectors) is handled with `asyncio.gather` inside each node.
 
 ### 5.4 REST API Endpoints ([router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/router.py))
 
-- `POST /research/trigger` — Spawns async background research task.
-- `GET /research/status/{run_id}` — Returns status (`running`, `completed`, `failed`).
+- `POST /api/research/trigger` — Spawns async background research task.
+- `GET /api/research/status/{run_id}` — Returns status (`running`, `completed`, `failed`).
 - `GET /research/logs/{run_id}` — Returns Tier-1 system debug log events (supports `node` and `event_type` filtering).
-- `GET /research/recommendations` — Latest ticker recommendations.
+- `GET /api/research/recommendations` — Latest ticker recommendations.
 - `GET /research/artifact/{run_id}/{type}` — Fetch report & evidence pack.
 
 | File           | Persona                    | Key Requirements                                      |
@@ -281,7 +289,7 @@ items with stable citation IDs (e.g. `[news_a1b2c3d4]`, `[mkt_f1e2d3c4]`).
 
 ### 5.6 Research Router ([router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/router.py))
 
-`POST /research/trigger` spawns an async background task. Run status is tracked
+`POST /api/research/trigger` spawns an async background task. Run status is tracked
 in-memory (`RUN_STATUS` dict) with DB fallback after server restarts.
 
 ---
@@ -344,7 +352,7 @@ Pure-Python quantitative finance (no pandas dependency):
 ### 6.9 Briefing ([briefing/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/briefing/))
 
 - [service.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/briefing/service.py) — `get_briefing_data()`: market status (NSE hours), climate strip (Nifty 50, India VIX, holdings breadth, net P&L), action desk (high-confidence or shifted research recs, up to 5 cards), news carousel (deduplicated top 5).
-- [router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/briefing/router.py) — `GET /briefing/`.
+- [router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/briefing/router.py) — `GET /api/briefing/`.
 - [schemas.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/briefing/schemas.py) — `BriefingResponse`, `ClimateData`, `ActionCard`, `NewsItem`, etc.
 
 ### 6.10 Watchlist ([watchlist/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/watchlist/))
@@ -369,8 +377,7 @@ Pure-Python quantitative finance (no pandas dependency):
 
 ### 7.2 Vite API Proxy ([vite.config.ts](file:///Users/pranjal/Projects/financial-agent/dev/frontend/vite.config.ts))
 
-All API paths (`/chat`, `/health`, `/portfolio`, `/tools`, `/research`,
-`/briefing`) are proxied to `http://127.0.0.1:8000`.
+All backend endpoints are prefixed with `/api` and globally proxied to `http://127.0.0.1:8000` via Vite's `server.proxy` configuration.
 
 ### 7.3 App Shell Layout ([App.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/App.tsx))
 
@@ -395,13 +402,13 @@ All API paths (`/chat`, `/health`, `/portfolio`, `/tools`, `/research`,
 Artifacts, Settings), tradebook CSV upload box with validation status, backend
 connectivity indicator.
 
-**Main Workspace Tabs:**
-- **Chat** — Message stream with `ToolCallCard` components (expandable tool
-  invocations), markdown rendering, composer textarea.
-- **Portfolio** — `PortfolioZone`: summary cards (market value, unrealized P&L,
-  realized P&L), holdings table with AI stance pills and confidence bars.
-- **Research** — `ResearchLayout`: orchestration graph viewer (React Flow DAG),
-  run history sidebar, node details panel, evidence drawer.
+**Main Workspace Routes (`<Routes>`):**
+- **`/home`** — Landing page featuring `BriefingZone` (climate stats, action desk, news carousel), recent conversations grid, and a prompt composer to initiate new chat sessions.
+- **`/chat` & `/chat/:id`** — `ChatLayout`: Full chat history browser with a sidebar of past sessions. Main view shows message streams, `ToolCallCard` components, and Markdown rendering.
+- **`/portfolio`** — `PortfolioZone`: summary cards, holdings table with AI stance pills and confidence bars.
+- **`/research`** — `ResearchLayout`: orchestration graph viewer (React Flow DAG), run history sidebar, node details panel, evidence drawer.
+- **`/library`** — `LibraryZone`: saved artifacts.
+- **`/settings`** — `SettingsZone`: model selection and API keys.
 
 **Right Drawer:** Collapsible quick-view of holdings with live prices, P&L %,
 and SVG sparkline charts.
@@ -424,19 +431,19 @@ and SVG sparkline charts.
 
 | Frontend Action          | Protocol    | Endpoint                         |
 | ------------------------ | ----------- | -------------------------------- |
-| Send chat message        | SSE stream  | `POST /chat`                     |
-| Upload tradebook CSV     | REST        | `POST /portfolio/upload`         |
-| View raw portfolio       | REST        | `GET /portfolio`                 |
-| View valued portfolio    | REST        | `GET /portfolio/valued`          |
-| Refresh live quotes      | REST        | `GET /portfolio/quotes`          |
-| Trigger deep research    | REST        | `POST /research/trigger`         |
-| Poll research status     | REST        | `GET /research/status/{run_id}`  |
+| Send chat message        | SSE stream  | `POST /api/chat`                     |
+| Upload tradebook CSV     | REST        | `POST /api/portfolio/upload`         |
+| View raw portfolio       | REST        | `GET /api/portfolio`                 |
+| View valued portfolio    | REST        | `GET /api/portfolio/valued`          |
+| Refresh live quotes      | REST        | `GET /api/portfolio/quotes`          |
+| Trigger deep research    | REST        | `POST /api/research/trigger`         |
+| Poll research status     | REST        | `GET /api/research/status/{run_id}`  |
 | Search stocks            | REST        | `GET /api/search/stocks`         |
-| View research artifact   | REST        | `GET /research/artifact/…`       |
-| Get recommendations      | REST        | `GET /research/recommendations`  |
-| Load morning briefing    | REST        | `GET /briefing/`                 |
-| Resolve ticker           | REST        | `GET /tools/resolve-asset`       |
-| Get stock quote          | REST        | `GET /tools/quote`               |
+| View research artifact   | REST        | `GET /api/research/artifact/…`       |
+| Get recommendations      | REST        | `GET /api/research/recommendations`  |
+| Load morning briefing    | REST        | `GET /api/briefing/`                 |
+| Resolve ticker           | REST        | `GET /api/tools/resolve-asset`       |
+| Get stock quote          | REST        | `GET /api/tools/quote`               |
 
 ---
 
@@ -446,7 +453,7 @@ and SVG sparkline charts.
 
 ```
 User types message
-  → Frontend POST /chat (SSE)
+  → Frontend POST /api/chat (SSE)
   → main.py builds portfolio context from DB
   → graph.py create_react_agent invoked with portfolio-injected system prompt
   → LLM decides: respond directly or call tools
@@ -459,7 +466,7 @@ User types message
 
 ```
 User uploads CSV
-  → POST /portfolio/upload
+  → POST /api/portfolio/upload
   → portfolio_parser.py: header detection → broker-specific parsing → ticker normalization
   → portfolio_service.py: FIFO lot-matching (buy lots queued, sell lots dequeued)
   → Realized P&L calculated, net positions with weighted avg_cost determined
@@ -470,7 +477,7 @@ User uploads CSV
 ### 8.3 Deep Research Flow
 
 ```
-POST /research/trigger → async background task
+POST /api/research/trigger → async background task
   → planner: resolve watchlist → tickers + sectors (instruments cache + yfinance fallback)
   → collection: parallel evidence gathering
       - Tavily: macro news, sector news, ticker news
@@ -490,7 +497,7 @@ POST /research/trigger → async background task
 ### 8.4 Briefing Flow
 
 ```
-GET /briefing/
+GET /api/briefing/
   → Market status check (NSE hours)
   → Concurrent fetch: Nifty 50, India VIX, holdings breadth, net P&L
   → Latest research artifacts → action cards (high confidence or shifted recs)

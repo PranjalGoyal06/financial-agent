@@ -20,6 +20,7 @@ from app.research.schemas import (
     TickerSynthesis,
 )
 from app.research.state import ResearchState
+from app.research.logger import get_run_logger
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +30,14 @@ logger = logging.getLogger(__name__)
 
 async def macro_synthesis_node(state: ResearchState) -> dict:
     """Synthesize market-wide macro evidence into a MacroSynthesis model."""
+    run_id = state.get("run_id")
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("macro_synthesis", "node_start", f"Macro Synthesis Node starting | run_id={run_id}")
+    
     pack = state.get("macro_evidence")
     if not pack or not pack.items:
         logger.warning("Macro evidence pack is empty. Skipping macro synthesis.")
+        run_logger.log_event("macro_synthesis", "node_complete", "Macro Synthesis skipped (no evidence)")
         return {}
 
     logger.info("Executing Macro Synthesis...")
@@ -44,6 +50,7 @@ async def macro_synthesis_node(state: ResearchState) -> dict:
         val = validate_citations(res.analysis_markdown + " ".join(res.key_drivers), pack)
         if not val.is_valid:
             logger.warning("Macro synthesis contained invalid citations: %s", val.invalid_citations)
+        run_logger.log_event("macro_synthesis", "node_complete", "Macro Synthesis complete.")
         return {"macro_synthesis": res}
     except Exception as exc:
         logger.error("Macro synthesis node failed: %s", exc)
@@ -78,8 +85,13 @@ async def _run_sector_synthesis(sector: str, state: ResearchState) -> tuple[str,
 
 async def sector_synthesis_node(state: ResearchState) -> dict:
     """Synthesize sector-level evidence for all active sectors in parallel."""
+    run_id = state.get("run_id")
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("sector_synthesis", "node_start", f"Sector Synthesis Node starting | run_id={run_id}")
+
     sectors = state.get("sectors") or []
     if not sectors:
+        run_logger.log_event("sector_synthesis", "node_complete", "Sector Synthesis skipped (no sectors)")
         return {}
 
     tasks = [_run_sector_synthesis(sec, state) for sec in sectors]
@@ -93,6 +105,7 @@ async def sector_synthesis_node(state: ResearchState) -> dict:
         else:
             errors.append(f"Sector synthesis failed for {sector}")
 
+    run_logger.log_event("sector_synthesis", "node_complete", f"Sector Synthesis complete. Processed {len(results)} sectors.")
     result: dict[str, Any] = {"sector_synthesis": updates}
     if errors:
         result["errors"] = errors
@@ -246,8 +259,13 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
 
 async def ticker_synthesis_node(state: ResearchState) -> dict:
     """Synthesize ticker-level evidence using a 5-step pipeline."""
+    run_id = state.get("run_id")
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("ticker_synthesis", "node_start", f"Ticker Synthesis Node starting | run_id={run_id}")
+
     tickers = state.get("tickers") or []
     if not tickers:
+        run_logger.log_event("ticker_synthesis", "node_complete", "Ticker Synthesis skipped (no tickers)")
         return {}
 
     sem = asyncio.Semaphore(2)
@@ -269,6 +287,7 @@ async def ticker_synthesis_node(state: ResearchState) -> dict:
         else:
             errors.append(f"Ticker synthesis failed for {ticker}")
 
+    run_logger.log_event("ticker_synthesis", "node_complete", f"Ticker Synthesis complete. Processed {len(results)} tickers.")
     result: dict[str, Any] = {"ticker_synthesis": updates}
     if errors:
         result["errors"] = errors
@@ -283,6 +302,8 @@ from app.quant.lib import compute_correlation_matrix
 async def portfolio_synthesis_node(state: ResearchState) -> dict:
     """CIO Node: Synthesize macro, sector, ticker outputs, and correlation matrices."""
     run_id = state.get("run_id") or "test_run"
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("portfolio_synthesis", "node_start", f"Portfolio Synthesis Node starting | run_id={run_id}")
     logger.info("Executing Portfolio Synthesis...")
 
     # Extract inputs from state
@@ -400,6 +421,7 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
         )
         if not val.is_valid:
             logger.warning("Portfolio synthesis contained invalid citations: %s", val.invalid_citations)
+        run_logger.log_event("portfolio_synthesis", "node_complete", "Portfolio Synthesis complete.")
         return {
             "portfolio_synthesis": res,
             "portfolio_evidence": pack  # Pass to state for persist_node

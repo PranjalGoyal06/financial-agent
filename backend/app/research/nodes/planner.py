@@ -13,6 +13,7 @@ from app.market_data.provider import normalize_ticker_symbol
 from app.models import InstrumentModel
 from app.research.state import ResearchState
 from app.watchlist.service import get_watchlist
+from app.research.logger import get_run_logger
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,10 @@ async def plan_macro_sector(state: ResearchState) -> dict:
     """
     user_id = state.get("user_id") or "local-user"
     watchlist_id = state.get("watchlist_id")
-    logger.info("Plan Macro/Sector Node starting | user_id=%s watchlist_id=%s run_id=%s", user_id, watchlist_id, state.get("run_id"))
+    run_id = state.get("run_id")
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("plan_macro_sector", "node_start", f"Plan Macro/Sector Node starting | run_id={run_id}")
+    logger.info("Plan Macro/Sector Node starting | user_id=%s watchlist_id=%s run_id=%s", user_id, watchlist_id, run_id)
 
     # 1. Fetch watchlist
     async with AsyncSessionLocal() as session:
@@ -152,6 +156,7 @@ async def plan_macro_sector(state: ResearchState) -> dict:
     if not watchlist:
         msg = f"Watchlist is empty for user_id={user_id}. Nothing to analyze."
         logger.warning(msg)
+        run_logger.log_event("plan_macro_sector", "node_complete", msg)
         return {
             "tickers": [],
             "sectors": [],
@@ -180,6 +185,7 @@ async def plan_macro_sector(state: ResearchState) -> dict:
         sectors,
         ticker_to_sector,
     )
+    run_logger.log_event("plan_macro_sector", "node_complete", f"Plan Macro/Sector complete. Mapped {len(watchlist)} tickers to {len(sectors)} sectors.")
 
     return {
         "tickers": watchlist,
@@ -198,6 +204,16 @@ async def plan_tickers(state: ResearchState) -> dict:
     """
     watchlist_tickers = state.get("tickers", [])
     discovered_tickers = state.get("discovered_tickers", [])
+    run_id = state.get("run_id")
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("plan_stock_universe", "node_start", f"Plan Tickers Node starting | run_id={run_id}")
+
+    logger.info(
+        "Plan Tickers Node starting | run_id=%s watchlist=%s discovered=%s",
+        run_id,
+        watchlist_tickers,
+        discovered_tickers,
+    )
     
     if not discovered_tickers:
         logger.info("Plan Tickers Node: No discovered tickers to merge.")
@@ -224,10 +240,14 @@ async def plan_tickers(state: ResearchState) -> dict:
 
     final_tickers = watchlist_tickers + discovered_tickers
     
-    logger.info("Plan Tickers complete | final_tickers=%s", final_tickers)
+    logger.info(
+        "Plan Tickers complete | final_tickers=%s added=%s",
+        final_tickers,
+        discovered_tickers,
+    )
+    run_logger.log_event("plan_stock_universe", "node_complete", f"Plan Tickers complete. Final universe size: {len(final_tickers)}.")
 
     return {
         "tickers": final_tickers,
         "ticker_to_sector": new_map,
     }
-

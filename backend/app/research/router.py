@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import select, delete, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +22,7 @@ from app.watchlist.service import get_watchlist
 from app.research.logger import get_run_logger, get_sse_queue, cleanup_sse_queue
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/research", tags=["Research"])
+router = APIRouter(prefix="/api/research", tags=["Research"])
 
 # Compiled graph singleton
 _research_graph = build_research_graph().compile()
@@ -95,7 +96,13 @@ async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | Non
             logger.error(f"Failed to update ResearchRunModel status for {run_id}: {e}")
 
         # 2. Emit terminal event to queue to unblock SSE subscribers
-        run_logger.log_event("workflow", "run_completed" if final_status == "completed" else "run_failed", f"Run {final_status}")
+        if final_status == "completed":
+            term_event = "run_completed"
+        elif final_status == "cancelled":
+            term_event = "run_cancelled"
+        else:
+            term_event = "run_failed"
+        run_logger.log_event("workflow", term_event, f"Run {final_status}")
         
         # 3. Clean up memory queue after a short delay so subscribers can drain terminal event
         await asyncio.sleep(5)
@@ -181,7 +188,7 @@ async def stream_run_events(run_id: str, session: AsyncSession = Depends(get_ses
         async with AsyncSessionLocal() as check_session:
             check_res = await check_session.execute(select(ResearchRunModel.status).where(ResearchRunModel.id == run_id))
             status_val = check_res.scalar_one_or_none()
-            if status_val in ("completed", "failed"):
+            if status_val in ("completed", "failed", "cancelled"):
                 return
                 
         # 2. Live Subscription
@@ -191,13 +198,13 @@ async def stream_run_events(run_id: str, session: AsyncSession = Depends(get_ses
                 event = await asyncio.wait_for(queue.get(), timeout=2.0)
                 yield f"event: node_event\ndata: {json.dumps(event)}\n\n"
                 queue.task_done()
-                if event.get("event_type") in ("run_completed", "run_failed"):
+                if event.get("event_type") in ("run_completed", "run_failed", "run_cancelled"):
                     break
             except asyncio.TimeoutError:
                 # Keep-alive or check run status
                 async with AsyncSessionLocal() as check_session:
                     check_res = await check_session.execute(select(ResearchRunModel.status).where(ResearchRunModel.id == run_id))
-                    if check_res.scalar_one_or_none() in ("completed", "failed"):
+                    if check_res.scalar_one_or_none() in ("completed", "failed", "cancelled"):
                         break
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -252,6 +259,7 @@ async def list_runs(
         "runs": [
             {
                 "id": r.id,
+                "title": r.title,
                 "status": r.status,
                 "started_at": r.started_at.isoformat(),
                 "completed_at": r.completed_at.isoformat() if r.completed_at else None,
@@ -259,6 +267,40 @@ async def list_runs(
             for r in runs
         ]
     }
+
+class RenameRunRequest(BaseModel):
+    title: str
+
+@router.patch("/runs/{run_id}")
+async def rename_run(
+    run_id: str,
+    payload: RenameRunRequest,
+    session: AsyncSession = Depends(get_session)
+) -> dict[str, str]:
+    """Rename a historical research run."""
+    stmt = select(ResearchRunModel).where(ResearchRunModel.id == run_id)
+    res = await session.execute(stmt)
+    db_run = res.scalar_one_or_none()
+    if not db_run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    db_run.title = payload.title
+    await session.commit()
+    return {"status": "renamed"}
+
+@router.delete("/runs/{run_id}")
+async def delete_run(
+    run_id: str,
+    session: AsyncSession = Depends(get_session)
+) -> dict[str, str]:
+    """Delete a historical research run."""
+    stmt = delete(ResearchRunModel).where(ResearchRunModel.id == run_id)
+    res = await session.execute(stmt)
+    if res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    await session.commit()
+    return {"status": "deleted"}
 
 @router.post("/schedule")
 async def create_schedule(

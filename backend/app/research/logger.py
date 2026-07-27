@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import traceback
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -10,6 +11,9 @@ from app.db import AsyncSessionLocal
 from app.models import ResearchRunEventModel
 
 logger = logging.getLogger(__name__)
+
+# Module-level set to maintain strong references to background asyncio tasks
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
 # Global dictionary of active SSE queues keyed by run_id
@@ -45,7 +49,7 @@ class ResearchRunLogger:
     def log_event(
         self,
         node: str,
-        event_type: Literal["node_start", "node_complete", "llm_call", "api_traffic", "triage_gate", "drift_report", "exception", "run_completed", "run_failed"],
+        event_type: Literal["node_start", "node_complete", "node_error", "llm_call", "api_traffic", "triage_gate", "drift_report", "exception", "run_completed", "run_failed", "run_cancelled"],
         summary: str,
         payload: dict[str, Any] | None = None,
         level: Literal["INFO", "WARNING", "ERROR", "DEBUG"] = "INFO",
@@ -74,7 +78,9 @@ class ResearchRunLogger:
         # 2. Write to DB asynchronously in the background
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self._async_db_write(event))
+            task = loop.create_task(self._async_db_write(event))
+            _BACKGROUND_TASKS.add(task)
+            task.add_done_callback(_BACKGROUND_TASKS.discard)
         except RuntimeError:
             # If no running loop, we can't write to DB in the background like this.
             # This shouldn't happen during a FastAPI request/background task.
@@ -143,12 +149,20 @@ class ResearchRunLogger:
             "exception_type": type(exception).__name__,
             "exception_message": str(exception),
             "context": context,
+            "traceback": traceback.format_exc(),
         }
         self.log_event(
             node=node,
             event_type="exception",
             summary=f"Exception in node {node}: {exception}",
             payload=payload,
+            level="ERROR",
+            target=target,
+        )
+        self.log_event(
+            node=node,
+            event_type="node_error",
+            summary=f"Node {node} failed",
             level="ERROR",
             target=target,
         )

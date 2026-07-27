@@ -1,3 +1,4 @@
+import { Routes, Route, NavLink, useNavigate, Navigate, useLocation } from "react-router-dom";
 import {
   ChangeEvent,
   FormEvent,
@@ -19,9 +20,11 @@ import {
   ToolCallGroup,
   ToolCallBlock,
 } from "./components/ToolCallCard";
+import { ArtifactCardRender } from "./components/ArtifactCardRender";
 import { ComparisonCardRender } from "./components/ComparisonCardRender";
 import { RecommendationCardRender } from "./components/RecommendationCardRender";
-import { ArtifactCardRender } from "./components/ArtifactCardRender";
+import { Home } from "./pages/Home";
+import { ChatLayout } from "./pages/ChatLayout";
 
 // ── Markdown ───────────────────────────────────────────────────────────────────
 
@@ -244,7 +247,8 @@ const SquareIcon = () => (
 import { AVAILABLE_MODELS, getSelectedModelConfig } from "./models";
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'research' | 'portfolio' | 'settings' | 'library'>('chat');
+  const navigate = useNavigate();
+  const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
@@ -342,7 +346,7 @@ export function App() {
           setSuggestions([]);
         });
     } else if (triggerState.activeTrigger === '@') {
-      fetch('/watchlists')
+      fetch('/api/watchlists')
         .then(res => res.json())
         .then(data => {
           if (data && Array.isArray(data.watchlists)) {
@@ -371,7 +375,7 @@ export function App() {
   // ── Health check ─────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch("/health")
+    fetch("/api/health")
       .then((r) => {
         if (!r.ok) throw new Error(`Backend returned ${r.status}`);
         return r.json();
@@ -405,7 +409,7 @@ export function App() {
 
   async function loadPortfolio() {
     try {
-      const r = await fetch("/portfolio");
+      const r = await fetch("/api/portfolio");
       if (!r.ok) throw new Error(`Portfolio returned ${r.status}`);
       const p = (await r.json()) as PortfolioResponse;
       setPortfolio(p);
@@ -421,7 +425,7 @@ export function App() {
     if (isRefreshingPrices) return;
     setIsRefreshingPrices(true);
     try {
-      const r = await fetch("/portfolio/quotes");
+      const r = await fetch("/api/portfolio/quotes");
       if (!r.ok) throw new Error("Failed to fetch quotes");
       const data = await r.json();
       setLivePrices(data);
@@ -449,7 +453,7 @@ export function App() {
     formData.append("file", selectedFile);
 
     try {
-      const r = await fetch("/portfolio/upload", { method: "POST", body: formData });
+      const r = await fetch("/api/portfolio/upload", { method: "POST", body: formData });
       const payload = await r.json();
 
       if (!r.ok) {
@@ -474,16 +478,7 @@ export function App() {
   // ── Composer auto-grow ────────────────────────────────────────────────────────
 
   function handlePreFillChat(query: string) {
-    setInput(query);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-          textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-        }
-      }, 0);
-    }
+    navigate('/home', { state: { prefill: query } });
   }
 
   function handleInputChange(e: ChangeEvent<HTMLTextAreaElement>) {
@@ -620,7 +615,7 @@ export function App() {
 
     try {
       const activeConfig = getSelectedModelConfig(selectedModelId);
-      const response = await fetch("/chat", {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ 
@@ -761,32 +756,32 @@ export function App() {
           <div className="sidebar__logo-text">PAISA</div>
         </div>
         
-        <nav className="nav-section">
+                <nav className="nav-section">
           <p className="nav-section__title">Main Menu</p>
-          <a href="#" className={`nav-item ${activeTab === 'chat' ? 'nav-item--active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('chat'); }}>
+          <NavLink to="/home" className={({isActive}) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
             <HomeIcon />
             Home
-          </a>
-          <a href="#" className={`nav-item ${activeTab === 'portfolio' ? 'nav-item--active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('portfolio'); setIsPortfolioOpen(false); }}>
+          </NavLink>
+          <NavLink to="/portfolio" onClick={() => setIsPortfolioOpen(false)} className={({isActive}) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
             <WalletIcon />
             Portfolio
-          </a>
-          <a href="#" className="nav-item">
+          </NavLink>
+          <NavLink to="/chat" className={({isActive}) => `nav-item ${isActive || location.pathname.startsWith('/chat') ? 'nav-item--active' : ''}`}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2-2z"></path></svg>
             Chat
-          </a>
-          <a href="#" className={`nav-item ${activeTab === 'research' ? 'nav-item--active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('research'); }}>
+          </NavLink>
+          <NavLink to="/research" className={({isActive}) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
             <ExchangeIcon />
             Research
-          </a>
-          <a href="#" className={`nav-item ${activeTab === 'library' ? 'nav-item--active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('library'); setIsPortfolioOpen(false); }}>
+          </NavLink>
+          <NavLink to="/library" onClick={() => setIsPortfolioOpen(false)} className={({isActive}) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
             Artifacts
-          </a>
-          <a href="#" className={`nav-item ${activeTab === 'settings' ? 'nav-item--active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('settings'); }}>
+          </NavLink>
+          <NavLink to="/settings" className={({isActive}) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             Settings
-          </a>
+          </NavLink>
         </nav>
 
         <form className="upload-box" onSubmit={uploadPortfolio}>
@@ -873,7 +868,7 @@ export function App() {
         <header className="top-header">
           <StockSearch 
             onSelect={(symbol, name) => {
-              setActiveTab('chat');
+              navigate('/home');
               handlePreFillChat(`Analyze ${name} (${symbol}), including recent news and financial health.`);
             }}
           />
@@ -896,185 +891,15 @@ export function App() {
           </div>
         </header>
 
-        {activeTab === 'portfolio' ? (
-          <PortfolioZone />
-        ) : activeTab === 'research' ? (
-          <ResearchLayout />
-        ) : activeTab === 'settings' ? (
-          <SettingsZone />
-        ) : activeTab === 'library' ? (
-          <LibraryZone />
-        ) : (
-          <>
-            <BriefingZone 
-              onPreFillChat={handlePreFillChat} 
-              onNavigateToAsset={(ticker) => {
-                // Let's assume for now clicking routes to research tab for this ticker
-                // In a real app we might route to portfolio drilldown if it's a holding
-                setActiveTab('research');
-                // The actual drill-down logic would set state here, but we've wired it up structurally.
-              }} 
-            />
-            <div className="message-list" aria-live="polite" style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-              {messages.map((msg) => {
-                if (msg.role === "user") {
-                  return (
-                    <div key={msg.id} className="turn turn--user">
-                      <div className="turn-avatar turn-avatar--user">
-                        <User size={18} />
-                      </div>
-                      <div className="turn-content-wrapper">
-                        <div className="turn-content">
-                          <Markdown content={msg.content ?? ""} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                if (msg.role === "system") {
-                  return (
-                    <div key={msg.id} className="turn turn--system">
-                      <p className="system-notice">{msg.content}</p>
-                    </div>
-                  );
-                }
-                if (msg.role === "error") {
-                  return (
-                    <div key={msg.id} className="turn turn--assistant">
-                      <div className="turn-avatar turn-avatar--error">
-                        <Sparkles size={18} />
-                      </div>
-                      <div className="turn-content-wrapper">
-                        <div className="error-bubble">
-                          <span className="error-bubble__icon">⚠</span>
-                          {msg.content}
-                        </div>
-                        <div className="end-of-message-indicator" />
-                      </div>
-                    </div>
-                  );
-                }
-                // assistant
-                return (
-                  <div key={msg.id} className="turn turn--assistant">
-                    <div className="turn-avatar turn-avatar--assistant">
-                      <Sparkles size={18} />
-                    </div>
-                    <div className="turn-content-wrapper">
-                      <AssistantBlocks blocks={msg.blocks ?? []} />
-                      <div className="end-of-message-indicator" />
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Streaming draft */}
-              {draftBlocks.length > 0 && (
-                <div className="turn turn--assistant">
-                  <div className="turn-avatar turn-avatar--assistant">
-                    <Sparkles size={18} />
-                  </div>
-                  <div className="turn-content-wrapper">
-                    <AssistantBlocks blocks={draftBlocks} isStreaming />
-                  </div>
-                </div>
-              )}
-              <div ref={bottomRef} />
-            </div>
-
-            {/* ── Composer ── */}
-            <div className="composer-wrap">
-              <div style={{ display: 'flex', justifyContent: 'flex-start', padding: '0 16px 8px' }}>
-                <select 
-                  value={selectedModelId}
-                  onChange={handleModelChange}
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: '4px',
-                    color: 'var(--text-light)',
-                    fontSize: '12px',
-                    padding: '2px 8px',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
-                >
-                  <optgroup label="Google Gemini">
-                    <option value="gemini:gemini-3.6-flash">Gemini 3.6 Flash</option>
-                    <option value="gemini:gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option>
-                  </optgroup>
-                  <optgroup label="Ollama Cloud">
-                    <option value="ollama_cloud:gemma4:31b-cloud">Gemma 4 31B (Cloud)</option>
-                    <option value="ollama_cloud:nemotron-3-super:cloud">Nemotron 3 Super (Cloud)</option>
-                  </optgroup>
-                  <optgroup label="Groq">
-                    <option value="groq:llama-3.3-70b-versatile">Groq (Llama 3.3 70B)</option>
-                  </optgroup>
-                  <optgroup label="Ollama Local">
-                    <option value="ollama:gemma4:e4b">Gemma 4 e4b (Local)</option>
-                    <option value="ollama:qwen3.5:latest">Qwen 3.5 (Local)</option>
-                  </optgroup>
-                </select>
-              </div>
-            <form className="composer" onSubmit={sendMessage}>
-              <div className="composer-input-wrapper">
-                <div className="composer-overlay">
-                  {renderOverlay(input)}
-                  {input.endsWith('\n') ? <br /> : null}
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  className="composer__input"
-                  aria-label="Message"
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Ask PAISA about your portfolio..."}
-                  rows={1}
-                />
-                
-                {triggerState.activeTrigger && suggestions.length > 0 && (
-                  <div className="suggestion-popup">
-                    {suggestions.map((sugg, i) => (
-                      <div 
-                        key={sugg.id} 
-                        className={`suggestion-item ${i === selectedIndex ? 'active' : ''}`}
-                        onClick={() => insertMention(sugg)}
-                      >
-                        {sugg.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {isStreaming ? (
-                <button
-                  className="composer__send composer__send--stop"
-                  type="button"
-                  onClick={stopStreaming}
-                  aria-label="Stop generating"
-                  title="Stop generating (Esc)"
-                >
-                  <SquareIcon />
-                </button>
-              ) : (
-                <button
-                  className="composer__send"
-                  disabled={!input.trim()}
-                  type="submit"
-                  aria-label="Send"
-                  title="Send message"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                  </svg>
-                </button>
-              )}
-            </form>
-          </div>
-        </>
-        )}
+        <Routes>
+          <Route path="/portfolio" element={<PortfolioZone />} />
+          <Route path="/research/:runId?" element={<ResearchLayout />} />
+          <Route path="/settings" element={<SettingsZone />} />
+          <Route path="/library" element={<LibraryZone />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/chat/*" element={<ChatLayout />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
+        </Routes>
       </section>
 
       {/* ── Right Sidebar (Portfolio) ── */}

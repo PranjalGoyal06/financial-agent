@@ -1,5 +1,6 @@
 export interface ResearchRun {
   id: string;
+  title?: string | null;
   status: 'running' | 'completed' | 'failed';
   started_at: string;
   completed_at: string | null;
@@ -30,7 +31,7 @@ export interface Watchlist {
 
 export const api = {
   async triggerRun(watchlist_id?: string): Promise<{ run_id: string; status: string }> {
-    let url = '/research/trigger';
+    let url = '/api/research/trigger';
     if (watchlist_id) {
       url += `?watchlist_id=${encodeURIComponent(watchlist_id)}`;
     }
@@ -40,19 +41,37 @@ export const api = {
   },
 
   async cancelRun(run_id: string): Promise<{ status: string; message: string }> {
-    const res = await fetch(`/research/cancel/${encodeURIComponent(run_id)}`, { method: 'POST' });
+    const res = await fetch(`/api/research/cancel/${encodeURIComponent(run_id)}`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to cancel run');
     return res.json();
   },
 
   async getRuns(): Promise<{ runs: ResearchRun[] }> {
-    const res = await fetch('/research/runs');
+    const res = await fetch('/api/research/runs');
     if (!res.ok) throw new Error('Failed to fetch runs');
     return res.json();
   },
 
+  async renameRun(run_id: string, title: string): Promise<{ status: string }> {
+    const res = await fetch(`/api/research/runs/${encodeURIComponent(run_id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) throw new Error('Failed to rename run');
+    return res.json();
+  },
+
+  async deleteRun(run_id: string): Promise<{ status: string }> {
+    const res = await fetch(`/api/research/runs/${encodeURIComponent(run_id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete run');
+    return res.json();
+  },
+
   async scheduleRun(cron_expression: string, watchlist_id?: string): Promise<ResearchSchedule> {
-    let url = `/research/schedule?cron_expression=${encodeURIComponent(cron_expression)}`;
+    let url = `/api/research/schedule?cron_expression=${encodeURIComponent(cron_expression)}`;
     if (watchlist_id) {
       url += `&watchlist_id=${encodeURIComponent(watchlist_id)}`;
     }
@@ -62,13 +81,13 @@ export const api = {
   },
 
   async getWatchlists(): Promise<{ watchlists: Watchlist[] }> {
-    const res = await fetch('/watchlists');
+    const res = await fetch('/api/watchlists');
     if (!res.ok) throw new Error('Failed to fetch watchlists');
     return res.json();
   },
 
   async getArtifact(runId: string, artifactType: string, target?: string): Promise<any> {
-    let url = `/research/artifact/${runId}/${artifactType}`;
+    let url = `/api/research/artifact/${runId}/${artifactType}`;
     if (target) {
       url += `?target=${encodeURIComponent(target)}`;
     }

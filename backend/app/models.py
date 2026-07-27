@@ -251,6 +251,7 @@ class ResearchRunModel(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     watchlist_id: Mapped[str | None] = mapped_column(ForeignKey("watchlists.id", ondelete="SET NULL"), index=True)
+    title: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -280,3 +281,27 @@ class ResearchScheduleModel(Base):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ChatSessionModel(Base):
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ChatMessageModel(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    thinking: Mapped[str | None] = mapped_column(Text)
+    tool_calls: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    tool_call_id: Mapped[str | None] = mapped_column(String(80))
+    tool_name: Mapped[str | None] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)

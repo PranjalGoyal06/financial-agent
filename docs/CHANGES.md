@@ -1,5 +1,42 @@
 # Changes
 
+### [2026-07-27] — Fixed TATAMOTORS.NS Error in discovery.py
+- Updated the hardcoded `TATAMOTORS.NS` ticker in `SCREENER_UNIVERSE` inside `discovery.py` to `TMPV.NS`.
+- Why: TATAMOTORS is deprecated (delisted) and was causing a `YFPricesMissingError` during the `discover_screen` node's yfinance download step, failing the batch check.
+- Invalidates no prior plans.
+
+### [2026-07-27] — Quick Fixes for SSE Routing and Evidence Metadata
+- Fixed the Vite proxy bypass bug in the frontend by ensuring the `EventSource` connection in `useResearchRun.ts` points to `/api/research/stream` instead of `/research/stream`.
+- Added a `metadata` dictionary field to the `EvidencePack` schema in `schemas.py` to resolve an `AttributeError` crashing the `collect_tickers_round2` pipeline node.
+
+### [2026-07-27] — Fixed SSE Event Mismatches and Silenced yfinance Logs
+- Fixed a silent event-loss bug in `logger.py` by maintaining strong references to background `asyncio` database write tasks.
+- Restored exception tracebacks in the `research_run_events` table payload, and decoupled UI node failure signaling (`node_error`) from the durable exception logs.
+- Resolved a state mismatch where stopped runs collapsed into "failed"; added explicit `run_cancelled` handlers in both the backend and frontend.
+- Silenced noisy Pandas deprecation warnings and HTTP 404 prints from `yfinance` in `discovery.py` by forcing `auto_adjust=False` and `ignore_tz=True`.
+- Fixed duplicate node descriptions in the frontend inspector panel.
+- *Why:* Ensures the frontend graph UI transitions to red/failed or cancelled accurately without getting permanently stuck in "running", and prevents silent data loss of critical orchestration audit logs.
+
+### [2026-07-27] — Stripped Placeholder UI and Added Rename/Delete for Research Runs
+- Removed mock `DiscoveryDesk` and `EvidenceDrawer` implementations from the `ResearchLayout.tsx` frontend to eliminate confusion around placeholder vs actual pipeline data.
+- Added `title` column to `ResearchRunModel` and performed a direct PostgreSQL schema update.
+- Implemented `PATCH /api/research/runs/{run_id}` and `DELETE /api/research/runs/{run_id}` endpoints in `router.py` to allow custom naming and removal of historical runs.
+- Enhanced the `RunHistorySidebar` with contextual "More options" dropdown menus mapping to the new edit and delete operations.
+- *Why:* Prevents users from mistaking static mock data for active research output, and adds necessary lifecycle management for organizing and pruning past research runs.
+
+### [2026-07-27] — Home Page UI Improvements & Chat Integration
+- Redesigned the Home tab to feature a prompt composer, a list of recent chat sessions, and suggested prompt chips, acting as a gateway to start new threads.
+- Refactored `BriefingZone` styling to "card-ify" the climate strip, expose the existing news carousel, and add an illustrated empty state for the Action Desk.
+- Integrated the new FastAPI `/api/chat` router with the frontend, moving the chat experience from a single flat list into a robust session-based `ChatBrowser` view (at `/chat`) with sidebar navigation.
+- Fixed a couple of lingering TypeScript build errors in the Research tab (type mismatches with `selectedRunId` and `NODE_SUMMARIES` indexing).
+- *Why:* Unifies the user experience by creating a clear distinction between the "dashboard" (Home) and the deep-dive conversational space (Chat), resolving the news integration gap, and polishing the aesthetic.
+
+### [2026-07-27] — Migrated Frontend to Client-Side Routing and Namespaced Backend APIs
+- Refactored FastAPI routers to use a unified `/api/` prefix for backend endpoints (`/api/research`, `/api/artifacts`, etc.) and updated the frontend `vite.config.ts` proxy.
+- Implemented `react-router-dom` in the React frontend, transitioning from state-based `activeTab` navigation to true URL-based client-side routing (e.g., `/home`, `/portfolio`, `/research`).
+- Kept global state (like chat messages) preserved across navigation by maintaining the state within the `App` shell component that houses the `<Routes>`.
+- *Why:* Enables direct deep-linking into specific application views and prevents browser URL collisions with the backend API root when serving both from the same domain locally.
+
 ### [2026-07-27] — Hotfixes for Research Run Logging & Missing YFinance Tickers
 - Fixed a PostgreSQL `ForeignKeyViolationError` in `backend/app/research/router.py` by deferring the first `log_event` emission until after the `ResearchRunModel` is successfully committed to the database.
 - Fixed 404 errors for Indian stocks (like `LEMONTREE` and `TATAPOWER`) by explicitly wrapping raw ticker queries with `normalize_ticker_symbol` in `backend/app/research/nodes/planner.py` and updating `_to_yf_symbol` in `main.py` to use the unified normalizer.
@@ -51,6 +88,12 @@
 - Introduced `WatchlistModel` to support named custom watchlists, chat mentions (`@` command), and selective execution in research runs.
 - Updated `get_watchlist` in `watchlist/service.py` to dynamically serve the user's holdings for the default "portfolio" watchlist, preventing data duplication.
 - Added `watchlist_id` to `ResearchRunModel` and `/research/trigger` endpoint to allow targeting specific watchlists for deep research.
+
+### [2026-07-27] — Fixed Research Run UI Bugs
+- Updated `ResearchLayout.tsx` to read the active run ID directly from the URL (`/research/:runId`) via `react-router-dom`, ensuring the active research view persists perfectly across hard refreshes.
+- Instrumented early-stage LangGraph nodes (`planner.py`, `collection.py`, `synthesis.py`) with `get_run_logger` to emit realtime SSE `node_start` events, resolving a UI lag bug where early nodes appeared permanently "pending".
+- Added a `NODE_SUMMARIES` human-readable dictionary to the frontend Node Inspector to display a clear 1-2 sentence description of a node's responsibilities to the end-user.
+- *Why:* Directly addresses bugs identified during manual UI testing, significantly improving real-time observability of the research graph execution and preserving layout state on navigation.
 
 ### [2026-07-26] — Implemented 3-Tier Model Architecture Across Research Orchestration
 - Configured Tier 1 (`gemma4:e4b` local), Tier 2 (`nemotron` via Ollama Cloud), and Tier 3 (`Gemini-3.6-Flash`) across all 14 graph nodes.
@@ -119,3 +162,7 @@
 - Added High_Level_Overview.md and CHANGES.md to `dev/docs/`
 - Why: To maintain structured architectural context and a rolling changelog.
 - Updated project instructions with rules for maintaining these files.
+### 2026-07-27 — Add dedicated chat page with persistent sessions
+- Extracted chat logic into `ChatPage.tsx` and simplified `Home.tsx` to serve as a routing shell entry point.
+- Created `ChatSessionModel` and `ChatMessageModel` to linearly persist chat history, including tool inputs and outputs as JSON.
+- Created `/api/chat/sessions` endpoints and modified the `stream_chat_events` logic to stream and persist data simultaneously.

@@ -33,6 +33,8 @@ from app.briefing.router import router as briefing_router
 from app.search.stocks_router import router as stocks_router
 from app.artifacts.router import router as artifacts_router
 from app.watchlist.router import router as watchlist_router
+from app.chat.router import router as chat_router
+from app.models import ChatMessageModel
 from app.schemas import ChatHealthResponse, ChatRequest, ServiceStatus
 
 
@@ -59,6 +61,7 @@ app.include_router(briefing_router)
 app.include_router(stocks_router, prefix="/api/search")
 app.include_router(artifacts_router)
 app.include_router(watchlist_router)
+app.include_router(chat_router)
 
 
 
@@ -157,7 +160,32 @@ async def stream_chat_events(
     raw_request: Request | None = None,
 ) -> AsyncIterator[str]:
     import uuid
+    from sqlalchemy.future import select
+    from app.models import ChatSessionModel, ChatMessageModel
+    
     current_thread_id = request.thread_id or str(uuid.uuid4())
+
+    # Ensure session exists
+    stmt = select(ChatSessionModel).where(ChatSessionModel.id == current_thread_id)
+    res = await session.execute(stmt)
+    if not res.scalar_one_or_none():
+        new_session = ChatSessionModel(
+            id=current_thread_id,
+            user_id=settings.default_user_id,
+            title="New Chat",
+        )
+        session.add(new_session)
+        await session.commit()
+        
+    # Persist user message
+    user_msg = ChatMessageModel(
+        id=str(uuid.uuid4()),
+        session_id=current_thread_id,
+        role="user",
+        content=request.message,
+    )
+    session.add(user_msg)
+    await session.commit()
 
     yield sse(
         "run_start",
@@ -240,6 +268,9 @@ async def stream_chat_events(
                     yield sse("token", {"token": word + " "})
                     
             config = {"configurable": {"thread_id": current_thread_id}}
+            assistant_content = ""
+            assistant_tools = []
+            
             async for event in agent.astream_events(
                 input_dict,
                 config,
@@ -260,6 +291,7 @@ async def stream_chat_events(
                         token_str = str(token) if token else ""
                         
                     if token_str:
+                        assistant_content += token_str
                         yield sse("token", {"token": token_str})
 
                 elif kind == "on_tool_start":
@@ -274,6 +306,7 @@ async def stream_chat_events(
                             "input": tool_input,
                         },
                     )
+                    assistant_tools.append({"name": tool_name, "input": tool_input, "id": event.get("run_id")})
 
                 elif kind == "on_tool_end":
                     tool_name = event.get("name", "tool")
@@ -291,6 +324,18 @@ async def stream_chat_events(
                             "output": raw_content,
                         },
                     )
+                    
+                    tool_output_msg = ChatMessageModel(
+                        id=str(uuid.uuid4()),
+                        session_id=current_thread_id,
+                        role="tool",
+                        content=raw_content,
+                        tool_name=tool_name,
+                        tool_call_id=event.get("run_id")
+                    )
+                    session.add(tool_output_msg)
+                    await session.commit()
+
                 elif kind == "on_chain_end" and event.get("name") in ["parse_input", "fetch_data", "generate_comparison", "generate_card", "audit_persist", "render_card"]:
                     output = event.get("data", {}).get("output", {})
                     if isinstance(output, dict):
@@ -301,6 +346,17 @@ async def stream_chat_events(
                             # If it's a Pydantic model, call model_dump()
                             payload = envelope.model_dump() if hasattr(envelope, "model_dump") else envelope
                             yield sse("card_render", payload)
+
+            # Persist assistant message
+            ast_msg = ChatMessageModel(
+                id=str(uuid.uuid4()),
+                session_id=current_thread_id,
+                role="assistant",
+                content=assistant_content,
+                tool_calls={"calls": assistant_tools} if assistant_tools else None
+            )
+            session.add(ast_msg)
+            await session.commit()
 
         except Exception as exc:
             yield sse("error", {"message": f"Agent error: {str(exc)}"})
@@ -333,7 +389,7 @@ _health_cache: dict[str, Any] = {"status": "healthy", "checks": {}, "timestamp":
 HEALTH_CACHE_TTL = 10.0
 
 
-@app.get("/health", response_model=ChatHealthResponse)
+@app.get("/api/health", response_model=ChatHealthResponse)
 async def health(session: AsyncSession = Depends(get_session)) -> ChatHealthResponse:
     now = time.time()
     if now - _health_cache["timestamp"] < HEALTH_CACHE_TTL and _health_cache["checks"]:
@@ -417,7 +473,7 @@ async def health(session: AsyncSession = Depends(get_session)) -> ChatHealthResp
     )
 
 
-@app.post("/chat")
+@app.post("/api/chat")
 async def chat(
     request: ChatRequest,
     raw_request: Request,
@@ -434,7 +490,7 @@ async def chat(
     )
 
 
-@app.get("/portfolio")
+@app.get("/api/portfolio")
 async def portfolio(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     return await get_portfolio(session, user_id=settings.default_user_id)
 
@@ -499,7 +555,7 @@ async def _fetch_quote_safe(ticker: str, exchange: str | None = None) -> dict[st
         return {"error": str(e)}
 
 
-@app.get("/portfolio/quotes")
+@app.get("/api/portfolio/quotes")
 async def portfolio_quotes(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     portfolio_data = await get_portfolio(session, user_id=settings.default_user_id)
     holdings = portfolio_data.get("holdings", [])
@@ -521,7 +577,7 @@ async def portfolio_quotes(session: AsyncSession = Depends(get_session)) -> dict
     return {ticker: res for ticker, res in zip(tickers, results)}
 
 
-@app.get("/portfolio/valued")
+@app.get("/api/portfolio/valued")
 async def portfolio_valued(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
     portfolio_data = await get_portfolio(session, user_id=settings.default_user_id)
     holdings = portfolio_data.get("holdings", [])
@@ -599,7 +655,7 @@ async def portfolio_valued(session: AsyncSession = Depends(get_session)) -> dict
     }
 
 
-@app.post("/portfolio/upload", status_code=status.HTTP_201_CREATED)
+@app.post("/api/portfolio/upload", status_code=status.HTTP_201_CREATED)
 async def upload_portfolio(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
