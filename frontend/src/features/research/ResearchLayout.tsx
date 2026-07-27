@@ -58,14 +58,27 @@ export function ResearchLayout() {
 
   const { nodes, edges, events, runStatus } = useResearchRun(selectedRunId);
 
+  // State for Watchlists
+  const [watchlists, setWatchlists] = useState<import('./api').Watchlist[]>([]);
+  const [selectedWatchlistId, setSelectedWatchlistId] = useState<string>('');
+
   useEffect(() => {
-    // Fetch initial runs
-    api.getRuns().then(data => {
-      setRunsList(data.runs);
-      if (data.runs.length > 0) {
-        setSelectedRunId(data.runs[0].id);
-      }
-    }).catch(err => console.error("Failed to fetch runs", err));
+    // Fetch initial runs and watchlists
+    Promise.all([api.getRuns(), api.getWatchlists()])
+      .then(([runsData, watchlistsData]) => {
+        setRunsList(runsData.runs);
+        if (runsData.runs.length > 0) {
+          setSelectedRunId(runsData.runs[0].id);
+        }
+        setWatchlists(watchlistsData.watchlists);
+        const portfolioWl = watchlistsData.watchlists.find(w => w.type === 'portfolio');
+        if (portfolioWl) {
+          setSelectedWatchlistId(portfolioWl.id);
+        } else if (watchlistsData.watchlists.length > 0) {
+          setSelectedWatchlistId(watchlistsData.watchlists[0].id);
+        }
+      })
+      .catch(err => console.error("Failed to fetch runs/watchlists", err));
   }, []);
 
   // State for Discovery view
@@ -74,7 +87,8 @@ export function ResearchLayout() {
   const handleTriggerNewRun = useCallback(async () => {
     setIsTriggering(true);
     try {
-      const data = await api.triggerRun();
+      const targetId = selectedWatchlistId || undefined;
+      const data = await api.triggerRun(targetId);
       const newRun: ResearchRun = {
         id: data.run_id,
         status: 'running',
@@ -88,7 +102,7 @@ export function ResearchLayout() {
     } finally {
       setIsTriggering(false);
     }
-  }, []);
+  }, [selectedWatchlistId]);
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId)?.data || null;
   const selectedDiscovery = mockDiscoveries.find(d => d.id === selectedDiscoveryId) || null;
@@ -199,6 +213,29 @@ export function ResearchLayout() {
             </div>
             
             <div className="research-header__actions">
+              {watchlists.length > 0 && (
+                <select 
+                  value={selectedWatchlistId} 
+                  onChange={e => setSelectedWatchlistId(e.target.value)}
+                  className="research-select"
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--line)',
+                    background: 'var(--surface)',
+                    color: 'var(--foreground)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    marginRight: '8px'
+                  }}
+                >
+                  {watchlists.map(wl => (
+                    <option key={wl.id} value={wl.id}>
+                      {wl.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button 
                 onClick={() => setEvidenceDrawerOpen(!isEvidenceDrawerOpen)}
                 className="research-btn"
@@ -211,7 +248,7 @@ export function ResearchLayout() {
                   const cron = prompt('Enter a cron expression to schedule a daily run (e.g., "0 17 * * 1-5" for 5 PM weekdays):', '0 17 * * 1-5');
                   if (cron) {
                     try {
-                      await api.scheduleRun(cron);
+                      await api.scheduleRun(cron, selectedWatchlistId || undefined);
                       alert('Run scheduled successfully!');
                     } catch (e) {
                       alert('Failed to schedule run.');

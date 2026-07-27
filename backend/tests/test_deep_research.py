@@ -12,8 +12,8 @@ def test_build_research_graph_compiles() -> None:
     graph = build_research_graph()
     compiled = graph.compile()
     assert compiled is not None
-    assert "planner" in compiled.nodes
-    assert "collection" in compiled.nodes
+    assert "plan_macro_sector" in compiled.nodes
+    assert "collect_macro_sector" in compiled.nodes
     assert "macro_synthesis" in compiled.nodes
     assert "portfolio_synthesis" in compiled.nodes
 

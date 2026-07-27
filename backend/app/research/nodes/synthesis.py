@@ -119,6 +119,24 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
         if sec_synth:
             sector_summary = sec_synth.analysis_markdown
 
+    from app.db import AsyncSessionLocal
+    from app.models import InstrumentModel
+    from sqlalchemy import select
+
+    metadata_text = "Metadata not available."
+    try:
+        async with AsyncSessionLocal() as session:
+            stmt = select(InstrumentModel).where(InstrumentModel.ticker == ticker)
+            res = await session.execute(stmt)
+            inst = res.scalar_one_or_none()
+            if inst:
+                metadata_text = f"Company: {inst.company_name or inst.display_name or ticker}\n"
+                metadata_text += f"Industry: {inst.industry or 'Unknown'}\n"
+                metadata_text += f"Market Cap: {inst.market_cap_bucket or 'Unknown'}\n"
+                metadata_text += f"Summary: {inst.summary or 'No summary available.'}"
+    except Exception as e:
+        logger.warning("Failed to fetch instrument metadata for %s: %s", ticker, e)
+
     logger.info("Executing Ticker Synthesis for: %s", ticker)
     
     # Pre-render evidence
@@ -127,13 +145,14 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
     # 3a. Draft Thesis (Bear-case first - Tier 2 Nemotron)
     draft_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are an equity analyst. Draft a comprehensive thesis. Crucially, start with the BEAR CASE and KILL THE COMPANY risk before any bull case. Return the TickerSynthesis JSON."),
-        ("user", "Ticker: {ticker}\nSector Context: {sector_summary}\n\nEvidence:\n{evidence}")
+        ("user", "Ticker: {ticker}\n\nCompany Metadata:\n{metadata}\n\nSector Context: {sector_summary}\n\nEvidence:\n{evidence}")
     ])
     draft_model = get_structured_model(TickerSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
     
     try:
         draft: TickerSynthesis = await (draft_prompt | draft_model).ainvoke({
             "ticker": ticker,
+            "metadata": metadata_text,
             "sector_summary": sector_summary,
             "evidence": evidence_text
         })

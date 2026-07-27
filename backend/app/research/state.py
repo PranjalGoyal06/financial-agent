@@ -30,6 +30,7 @@ class ResearchState(TypedDict):
 
     run_id: str
     user_id: str
+    watchlist_id: str | None
 
     # ── Targets determined by the Planner Node ────────────────────────────────
     tickers: list[str]

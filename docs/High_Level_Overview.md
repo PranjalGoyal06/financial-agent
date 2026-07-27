@@ -18,6 +18,7 @@ dev/
 │   ├── app/                    # FastAPI application package
 │   │   ├── main.py             # App entry point, endpoints, SSE streaming
 │   │   ├── graph.py            # LangGraph ReAct chat agent
+│   │   ├── checkpointer.py     # LangGraph checkpointer (AsyncPostgresSaver) instance
 │   │   ├── config.py           # Pydantic Settings (env vars)
 │   │   ├── db.py               # Async SQLAlchemy engine, session factory
 │   │   ├── models.py           # ORM models (User, Portfolio, Holdings, …)
@@ -149,8 +150,9 @@ The endpoint accepts the raw FastAPI `Request` object and monitors `await raw_re
 | **HoldingModel**       | `holdings`           | `portfolio_id`/`import_id` FKs, `raw_ticker`, `canonical_ticker`, `exchange`, `asset_class`, `quantity`, `avg_cost`, `currency`, `purchase_date` |
 | **MarketSnapshotModel** | `market_snapshots`  | `ticker`, `snapshot_type`, `params_hash` (unique), `payload_json`, `provider`, `fresh_until` |
 | **InstrumentModel**    | `instruments`        | `ticker` PK, `name`, `exchange`, `sector`, `industry`, `asset_class`, `aliases` (JSON) |
-| **WatchlistItem**      | `watchlist_items`    | `user_id` FK, `canonical_ticker`, `exchange`                               |
-| **ResearchRunModel**   | `research_runs`      | `id`, `user_id`, `status` (`running`, `completed`, `failed`), `started_at`, `completed_at`, `error_message` |
+| **WatchlistModel**     | `watchlists`         | `id`, `user_id` FK, `name`, `slug`, `type` (`portfolio`, `custom`), timestamps |
+| **WatchlistItem**      | `watchlist_items`    | `id`, `watchlist_id` FK, `canonical_ticker`, `exchange`                               |
+| **ResearchRunModel**   | `research_runs`      | `id`, `user_id`, `watchlist_id` FK, `status` (`running`, `completed`, `failed`), `started_at`, `completed_at`, `error_message` |
 | **ResearchRunEventModel**| `research_run_events`| `id`, `run_id` FK, `node`, `event_type`, `payload_json` (JSONB), `timestamp` |
 | **ResearchScheduleModel**| `research_schedules` | `id`, `user_id`, `cron_expression`, `is_active`, `created_at`              |
 | **ResearchArtifact**   | `research_artifacts` | `run_id` FK, `artifact_type` (macro/sector/ticker/portfolio), `target`, `content_markdown`, `evidence_pack_json`, `recommendation`, `confidence_score` |
@@ -160,8 +162,11 @@ The endpoint accepts the raw FastAPI `Request` object and monitors `await raw_re
 ## 4. LangGraph Chat Agent ([graph.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/graph.py))
 
 The chat agent is built with `create_react_agent` from LangGraph. It uses a
-**`SequentialToolNode`** subclass of `ToolNode` that executes tool calls one at
-a time to avoid race conditions during SSE streaming.
+custom `SequentialToolNode` to guarantee tools execute in order, solving race
+conditions during streaming. 
+
+### Context Management
+Conversation history is maintained automatically using LangGraph's `AsyncPostgresSaver` checkpointer. State size is managed dynamically using `trim_messages` inside a `state_modifier` hook, which keeps the context window constrained to a maximum token count (e.g., 8000 tokens) before it reaches the LLM, while fully preserving the immutable conversation log in PostgreSQL.
 
 ### System Prompt
 
@@ -344,7 +349,7 @@ Pure-Python quantitative finance (no pandas dependency):
 
 ### 6.10 Watchlist ([watchlist/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/watchlist/))
 
-- [service.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/watchlist/service.py) — `get_watchlist()` returns the sorted union of held tickers + custom watchlist items. `add_to_watchlist()` / `remove_from_watchlist()` for CRUD. No REST router yet — service-only.
+- [service.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/watchlist/service.py) — `get_watchlist()` returns the tickers for a specific watchlist. If `type="portfolio"`, it dynamically queries the user's holdings; if `type="custom"`, it queries `WatchlistItem`. Supports full CRUD (create, rename, delete) for custom watchlists and managing items.
 
 ### 6.11 LLM Provider ([llm/provider.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/llm/provider.py))
 

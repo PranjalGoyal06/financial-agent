@@ -21,9 +21,20 @@ export interface ResearchSchedule {
   is_active: boolean;
 }
 
+export interface Watchlist {
+  id: string;
+  name: string;
+  slug: string;
+  type: string;
+}
+
 export const api = {
-  async triggerRun(): Promise<{ run_id: string; status: string }> {
-    const res = await fetch('/research/trigger', { method: 'POST' });
+  async triggerRun(watchlist_id?: string): Promise<{ run_id: string; status: string }> {
+    let url = '/research/trigger';
+    if (watchlist_id) {
+      url += `?watchlist_id=${encodeURIComponent(watchlist_id)}`;
+    }
+    const res = await fetch(url, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to trigger run');
     return res.json();
   },
@@ -34,9 +45,19 @@ export const api = {
     return res.json();
   },
 
-  async scheduleRun(cron_expression: string): Promise<ResearchSchedule> {
-    const res = await fetch(`/research/schedule?cron_expression=${encodeURIComponent(cron_expression)}`, { method: 'POST' });
+  async scheduleRun(cron_expression: string, watchlist_id?: string): Promise<ResearchSchedule> {
+    let url = `/research/schedule?cron_expression=${encodeURIComponent(cron_expression)}`;
+    if (watchlist_id) {
+      url += `&watchlist_id=${encodeURIComponent(watchlist_id)}`;
+    }
+    const res = await fetch(url, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to schedule run');
+    return res.json();
+  },
+
+  async getWatchlists(): Promise<{ watchlists: Watchlist[] }> {
+    const res = await fetch('/watchlists');
+    if (!res.ok) throw new Error('Failed to fetch watchlists');
     return res.json();
   },
 

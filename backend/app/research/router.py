@@ -28,16 +28,16 @@ _research_graph = build_research_graph().compile()
 
 # ── Background Task Runner ────────────────────────────────────────────────────
 
-async def _run_research_graph(run_id: str, user_id: str) -> None:
+async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | None = None) -> None:
     """Execute the compiled LangGraph workflow in the background."""
     run_logger = get_run_logger(run_id)
     run_logger.log_event("workflow", "node_start", f"Starting background deep research run {run_id}")
-    logger.info("Starting background deep research | run_id=%s user_id=%s", run_id, user_id)
+    logger.info("Starting background deep research | run_id=%s user_id=%s watchlist_id=%s", run_id, user_id, watchlist_id)
     
     # Register run in DB
     try:
         async with AsyncSessionLocal() as session:
-            db_run = ResearchRunModel(id=run_id, user_id=user_id, status="running")
+            db_run = ResearchRunModel(id=run_id, user_id=user_id, watchlist_id=watchlist_id, status="running")
             session.add(db_run)
             await session.commit()
     except Exception as e:
@@ -49,6 +49,7 @@ async def _run_research_graph(run_id: str, user_id: str) -> None:
         initial_state: dict[str, Any] = {
             "run_id": run_id,
             "user_id": user_id,
+            "watchlist_id": watchlist_id,
             "tickers": [],
             "sectors": [],
             "ticker_to_sector": {},
@@ -95,13 +96,14 @@ async def _run_research_graph(run_id: str, user_id: str) -> None:
 
 @router.post("/trigger", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_research(
+    watchlist_id: str | None = Query(default=None, description="Optional ID of a specific watchlist to run against"),
     user_id: str = settings.default_user_id,
 ) -> dict[str, str]:
     """Trigger a deep research analysis workflow run in the background."""
     run_id = f"run_{uuid4().hex[:12]}"
     
     # Spawn background task
-    asyncio.create_task(_run_research_graph(run_id, user_id))
+    asyncio.create_task(_run_research_graph(run_id, user_id, watchlist_id))
     
     return {
         "run_id": run_id,

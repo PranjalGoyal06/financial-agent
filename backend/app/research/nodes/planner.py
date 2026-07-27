@@ -17,22 +17,44 @@ logger = logging.getLogger(__name__)
 
 
 def _fetch_yf_metadata(ticker: str) -> dict:
-    """Synchronous yfinance call to retrieve sector, industry, and name metadata."""
+    """Synchronous yfinance call to retrieve instrument metadata."""
     try:
         t = yf.Ticker(ticker)
         info = t.info
+        
+        market_cap = info.get("marketCap")
+        market_cap_bucket = None
+        if market_cap:
+            if market_cap > 200_000_000_000:
+                market_cap_bucket = "Large Cap"
+            elif market_cap >= 50_000_000_000:
+                market_cap_bucket = "Mid Cap"
+            else:
+                market_cap_bucket = "Small Cap"
+
         return {
-            "name": info.get("longName") or info.get("shortName") or ticker,
-            "sector": info.get("sector") or "Diversified",
-            "industry": info.get("industry") or "Diversified",
-            "exchange": "NSE" if ticker.upper().endswith(".NS") else "BSE",
+            "canonical_ticker": ticker.split(".")[0],
+            "display_name": info.get("shortName"),
+            "company_name": info.get("longName"),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "market_cap": market_cap,
+            "market_cap_bucket": market_cap_bucket,
+            "country": info.get("country"),
+            "currency": info.get("currency"),
+            "exchange": info.get("exchange") or ("NSE" if ticker.upper().endswith(".NS") else "BSE"),
+            "quote_type": info.get("quoteType"),
+            "website": info.get("website"),
+            "summary": info.get("longBusinessSummary"),
+            "full_time_employees": info.get("fullTimeEmployees"),
+            "raw_yfinance_info": info,
         }
     except Exception as exc:
         logger.warning("yfinance metadata fetch failed for %r: %s", ticker, exc)
         return {
-            "name": ticker,
-            "sector": "Unknown",
-            "industry": "Unknown",
+            "canonical_ticker": ticker.split(".")[0],
+            "display_name": ticker,
+            "company_name": ticker,
             "exchange": "NSE" if ticker.upper().endswith(".NS") else "BSE",
         }
 
@@ -52,12 +74,12 @@ async def _resolve_ticker_sector(ticker: str) -> tuple[str, str]:
         inst = res.scalar_one_or_none()
 
     if inst and inst.sector and inst.sector != "Unknown":
-        return inst.name, inst.sector
+        return inst.display_name or inst.company_name or inst.ticker, inst.sector
 
     # 2. Fall back to yfinance
     metadata = await asyncio.to_thread(_fetch_yf_metadata, ticker)
-    name = metadata["name"]
-    sector = metadata["sector"]
+    display_name = metadata.get("display_name") or metadata.get("company_name") or ticker
+    sector = metadata.get("sector") or "Diversified"
 
     # 3. Upsert into instruments table
     async with AsyncSessionLocal() as session:
@@ -66,19 +88,41 @@ async def _resolve_ticker_sector(ticker: str) -> tuple[str, str]:
                 pg_insert(InstrumentModel)
                 .values(
                     ticker=ticker,
-                    name=name,
-                    exchange=metadata["exchange"],
-                    sector=sector,
-                    industry=metadata["industry"],
-                    asset_class="Equity",
+                    canonical_ticker=metadata.get("canonical_ticker"),
+                    display_name=metadata.get("display_name"),
+                    company_name=metadata.get("company_name"),
+                    sector=metadata.get("sector"),
+                    industry=metadata.get("industry"),
+                    market_cap=metadata.get("market_cap"),
+                    market_cap_bucket=metadata.get("market_cap_bucket"),
+                    country=metadata.get("country"),
+                    currency=metadata.get("currency"),
+                    exchange=metadata.get("exchange"),
+                    quote_type=metadata.get("quote_type"),
+                    website=metadata.get("website"),
+                    summary=metadata.get("summary"),
+                    full_time_employees=metadata.get("full_time_employees"),
+                    raw_yfinance_info=metadata.get("raw_yfinance_info", {}),
                     last_synced_at=datetime.now(timezone.utc),
                 )
                 .on_conflict_do_update(
                     index_elements=["ticker"],
                     set_={
-                        "name": name,
-                        "sector": sector,
-                        "industry": metadata["industry"],
+                        "canonical_ticker": metadata.get("canonical_ticker"),
+                        "display_name": metadata.get("display_name"),
+                        "company_name": metadata.get("company_name"),
+                        "sector": metadata.get("sector"),
+                        "industry": metadata.get("industry"),
+                        "market_cap": metadata.get("market_cap"),
+                        "market_cap_bucket": metadata.get("market_cap_bucket"),
+                        "country": metadata.get("country"),
+                        "currency": metadata.get("currency"),
+                        "exchange": metadata.get("exchange"),
+                        "quote_type": metadata.get("quote_type"),
+                        "website": metadata.get("website"),
+                        "summary": metadata.get("summary"),
+                        "full_time_employees": metadata.get("full_time_employees"),
+                        "raw_yfinance_info": metadata.get("raw_yfinance_info", {}),
                         "last_synced_at": datetime.now(timezone.utc),
                     },
                 )
@@ -86,7 +130,7 @@ async def _resolve_ticker_sector(ticker: str) -> tuple[str, str]:
             await session.execute(insert_stmt)
 
     logger.info("Resolved metadata for %s | sector=%s (saved to cache)", ticker, sector)
-    return name, sector
+    return display_name, sector
 
 
 async def plan_macro_sector(state: ResearchState) -> dict:
@@ -97,11 +141,12 @@ async def plan_macro_sector(state: ResearchState) -> dict:
     so that macro/sector collection can begin.
     """
     user_id = state.get("user_id") or "local-user"
-    logger.info("Plan Macro/Sector Node starting | user_id=%s run_id=%s", user_id, state.get("run_id"))
+    watchlist_id = state.get("watchlist_id")
+    logger.info("Plan Macro/Sector Node starting | user_id=%s watchlist_id=%s run_id=%s", user_id, watchlist_id, state.get("run_id"))
 
     # 1. Fetch watchlist
     async with AsyncSessionLocal() as session:
-        watchlist = await get_watchlist(session, user_id)
+        watchlist = await get_watchlist(session, user_id, watchlist_id)
 
     if not watchlist:
         msg = f"Watchlist is empty for user_id={user_id}. Nothing to analyze."

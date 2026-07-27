@@ -11,6 +11,7 @@ export interface Artifact {
   date: string;
   content: string; // Markdown or specific payload
   source_type?: string;
+  displayType?: string;
 }
 
 interface ArtifactCardProps {
@@ -29,7 +30,7 @@ export function ArtifactCard({ artifact, onClick, onDelete, onRename, index }: A
       onClick={() => onClick(artifact)}
       style={{ animationDelay: `${index * 0.05}s` }}
     >
-      <span className="artifact-type-badge">{artifact.type}</span>
+      <span className="artifact-type-badge">{artifact.displayType || artifact.type}</span>
       <h3 className="artifact-title">{artifact.title}</h3>
       <p className="artifact-excerpt">{artifact.excerpt}</p>
       

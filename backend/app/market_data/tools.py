@@ -12,6 +12,9 @@ from app.market_data.provider import (
 )
 from app.market_data.resolver import resolve_asset
 from app.market_data.schemas import HistoricalDataResponse, MarketQuote
+from app.db import AsyncSessionLocal
+from app.models import InstrumentModel
+from sqlalchemy import select
 
 # Singleton provider — same as the one used by the router.
 _provider = YFinanceProvider()
@@ -142,15 +145,51 @@ async def get_fundamentals_tool(ticker: str) -> str:
         raise ToolException(f"Fundamentals data unavailable: {exc}") from exc
 
 
+_META_DESC = (
+    "Get rich static metadata for an Indian equity ticker from the local database. "
+    "The ticker MUST end with .NS (NSE) or .BO (BSE). Returns sector, industry, "
+    "market cap bucket, company name, summary, website, and employee count. "
+    "Use this tool when you need basic context about a company or what it does."
+)
+
+@tool(description=_META_DESC)
+async def get_instrument_metadata_tool(ticker: str) -> str:
+    """Get rich static metadata (sector, industry, summary) for a ticker."""
+    ticker = ticker.upper()
+    async with AsyncSessionLocal() as session:
+        stmt = select(InstrumentModel).where(InstrumentModel.ticker == ticker)
+        res = await session.execute(stmt)
+        instrument = res.scalar_one_or_none()
+        
+        if not instrument:
+            raise ToolException(f"Metadata for ticker '{ticker}' not found in the local database.")
+            
+        return json.dumps({
+            "ticker": instrument.ticker,
+            "display_name": instrument.display_name,
+            "company_name": instrument.company_name,
+            "sector": instrument.sector,
+            "industry": instrument.industry,
+            "market_cap": instrument.market_cap,
+            "market_cap_bucket": instrument.market_cap_bucket,
+            "country": instrument.country,
+            "website": instrument.website,
+            "full_time_employees": instrument.full_time_employees,
+            "summary": instrument.summary,
+        })
+
+
 # Public list — imported by graph.py to bind to the agent.
 get_quote_tool.handle_tool_error = True
 get_historical_data_tool.handle_tool_error = True
 get_fundamentals_tool.handle_tool_error = True
+get_instrument_metadata_tool.handle_tool_error = True
 
 MARKET_DATA_TOOLS = [
     resolve_asset_tool,
     get_quote_tool,
     get_historical_data_tool,
     get_fundamentals_tool,
+    get_instrument_metadata_tool,
 ]
 

@@ -27,9 +27,13 @@ AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 async def init_db() -> None:
     from app import models  # noqa: F401
+    from app.checkpointer import get_checkpointer_context
 
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        
+    async with get_checkpointer_context() as checkpointer:
+        await checkpointer.setup()
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

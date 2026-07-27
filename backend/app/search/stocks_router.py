@@ -1,14 +1,15 @@
-import json
 import os
 from typing import List, Dict, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_, func
+
+from app.db import get_session
+from app.models import InstrumentModel
 
 router = APIRouter()
-
-# In-memory cache for the stocks data
-_STOCKS_CACHE: List[Dict[str, str]] = []
 
 class StockResponse(BaseModel):
     symbol: str
@@ -17,45 +18,40 @@ class StockResponse(BaseModel):
     series: Optional[str] = None
     exchange: Optional[str] = "NSE"
 
-def load_stocks_data():
-    global _STOCKS_CACHE
-    if _STOCKS_CACHE:
-        return
-        
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(current_dir, "data", "stocks.json")
-    
-    if not os.path.exists(json_path):
-        print(f"Warning: Stock JSON data file not found at {json_path}")
-        return
-        
-    try:
-        with open(json_path, mode="r", encoding="utf-8") as f:
-            _STOCKS_CACHE = json.load(f)
-    except Exception as e:
-        print(f"Error loading stock data: {e}")
-
-@router.on_event("startup")
-async def startup_event():
-    load_stocks_data()
 
 @router.get("/stocks", response_model=List[StockResponse])
-async def search_stocks(q: str = Query("")):
-    """Search stocks by symbol or name. Returns top 10 results."""
-    query = q.lower().strip()
+async def search_stocks(q: str = Query(""), session: AsyncSession = Depends(get_session)):
+    """Search stocks by symbol or name in the local database. Returns top 10 results."""
+    query = q.strip()
     if not query:
         return []
         
-    # Lazy load just in case startup event didn't fire (e.g. testing)
-    if not _STOCKS_CACHE:
-        load_stocks_data()
-        
+    search_term = f"%{query}%"
+    
+    stmt = (
+        select(InstrumentModel)
+        .where(
+            or_(
+                InstrumentModel.ticker.ilike(search_term),
+                InstrumentModel.display_name.ilike(search_term),
+                InstrumentModel.company_name.ilike(search_term),
+            )
+        )
+        .order_by(InstrumentModel.market_cap.desc().nulls_last())
+        .limit(10)
+    )
+    
+    res = await session.execute(stmt)
+    instruments = res.scalars().all()
+    
     results = []
-    # Simple linear search - fast enough for ~2300 items
-    for stock in _STOCKS_CACHE:
-        if query in stock["symbol"].lower() or query in stock["name"].lower():
-            results.append(stock)
-            if len(results) >= 10:
-                break
-                
+    for inst in instruments:
+        results.append({
+            "symbol": inst.ticker,
+            "name": inst.display_name or inst.company_name or inst.ticker,
+            "isin": inst.isin,
+            "series": inst.series,
+            "exchange": inst.exchange or "NSE",
+        })
+        
     return results

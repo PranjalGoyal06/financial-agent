@@ -254,6 +254,7 @@ export function App() {
   const [status, setStatus] = useState("Checking backend...");
   const [healthData, setHealthData] = useState<any>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   function stopStreaming() {
@@ -338,13 +339,24 @@ export function App() {
           setSuggestions([]);
         });
     } else if (triggerState.activeTrigger === '@') {
-      const allArtifacts = [
-        { id: 'research_notes', label: 'Research Notes' },
-        { id: 'q1_earnings', label: 'Q1 Earnings Draft' },
-        { id: 'tradebook', label: 'Tradebook CSV' }
-      ];
-      setSuggestions(allArtifacts.filter(a => a.id.toLowerCase().includes(query) || a.label.toLowerCase().includes(query)));
-      setSelectedIndex(0);
+      fetch('/watchlists')
+        .then(res => res.json())
+        .then(data => {
+          if (data && Array.isArray(data.watchlists)) {
+            const wls = data.watchlists.map((wl: any) => ({
+              id: wl.slug,
+              label: wl.name
+            }));
+            setSuggestions(wls.filter((w: any) => 
+              w.id.toLowerCase().includes(query) || w.label.toLowerCase().includes(query)
+            ));
+            setSelectedIndex(0);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to fetch watchlists", err);
+          setSuggestions([]);
+        });
     }
   }, [triggerState]);
 
@@ -535,7 +547,7 @@ export function App() {
     setRecognizedMentions(prev => {
       const next = new Map(prev);
       next.set(replacement.trim(), { 
-        type: triggerState.activeTrigger === '/' ? 'command' : (triggerState.activeTrigger === '$' ? 'ticker' : 'artifact'), 
+        type: triggerState.activeTrigger === '/' ? 'command' : (triggerState.activeTrigger === '$' ? 'ticker' : 'watchlist'), 
         id: sugg.id, 
         label: sugg.label 
       });
@@ -610,6 +622,7 @@ export function App() {
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ 
           message,
+          thread_id: chatThreadId,
           mentions: activeMentions,
           llm_provider: activeConfig.provider,
           llm_model: activeConfig.model,
@@ -645,6 +658,9 @@ export function App() {
 
           if (parsed.event === "run_start") {
             setStatus("Thinking…");
+            if (parsed.data.thread_id) {
+              setChatThreadId(parsed.data.thread_id);
+            }
           }
 
           if (parsed.event === "token") {

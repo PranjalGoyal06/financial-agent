@@ -6,12 +6,18 @@ import './library-styles.css';
 
 const CATEGORIES: { label: string; value: string }[] = [
   { label: 'All Artifacts', value: 'all' },
-  { label: 'Reports', value: 'report' },
-  { label: 'Charts & Analysis', value: 'chart' },
-  { label: 'Data Extracts', value: 'data' },
-  { label: 'Transcripts', value: 'transcript' },
+  { label: 'Research', value: 'research' },
+  { label: 'Chat', value: 'chat_create' },
   { label: 'User Uploads', value: 'user_upload' }
 ];
+
+const formatType = (type: string, sourceType: string) => {
+  if (sourceType === 'chat_create') return 'Chat';
+  if (sourceType === 'user_upload') return 'User Upload';
+  if (sourceType === 'research' && type) return `Research (${type})`;
+  if (sourceType === 'research') return 'Research';
+  return type || sourceType;
+};
 
 export function LibraryZone() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
@@ -46,6 +52,7 @@ export function LibraryZone() {
             title: a.title,
             excerpt: a.content_markdown.substring(0, 150) + '...',
             type: type,
+            displayType: formatType(type, a.source_type),
             date: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Unknown Date',
             content: a.content_markdown,
             source_type: a.source_type
@@ -129,8 +136,7 @@ export function LibraryZone() {
     // category match
     let matchesCategory = false;
     if (activeCategory === 'all') matchesCategory = true;
-    else if (activeCategory === 'user_upload') matchesCategory = a.source_type === 'user_upload';
-    else matchesCategory = a.type === activeCategory;
+    else matchesCategory = a.source_type === activeCategory;
 
     // search match
     const searchLower = searchQuery.toLowerCase();
@@ -147,7 +153,7 @@ export function LibraryZone() {
           <button 
             className="library-action-btn primary"
             onClick={() => setIsUploadOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--line)', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}
           >
             <UploadCloud size={18} />
             Upload
@@ -202,9 +208,9 @@ export function LibraryZone() {
             <>
               <div className="preview-header">
                 <div>
-                  <span className="artifact-type-badge">{selectedArtifact.type}</span>
+                  <span className="artifact-type-badge">{selectedArtifact.displayType || selectedArtifact.type}</span>
                   <h2 className="preview-title">{selectedArtifact.title}</h2>
-                  <div className="preview-meta">{selectedArtifact.date} {selectedArtifact.source_type === 'user_upload' ? '(User Uploaded)' : ''}</div>
+                  <div className="preview-meta">{selectedArtifact.date}</div>
                 </div>
                 <button className="preview-close" onClick={() => setSelectedArtifact(null)}>
                   <X size={24} />
@@ -240,17 +246,23 @@ export function LibraryZone() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Type</label>
-                <select 
-                  value={uploadType}
-                  onChange={e => setUploadType(e.target.value)}
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Upload File (.md, .txt)</label>
+                <input 
+                  type="file" 
+                  accept=".md,.txt" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (!uploadTitle.trim()) setUploadTitle(file.name.replace(/\.(md|txt)$/i, ''));
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        if (ev.target?.result) setUploadContent(ev.target.result as string);
+                      };
+                      reader.readAsText(file);
+                    }
+                  }}
                   style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--surface-hover)', background: 'var(--app-bg)', color: 'var(--ink)' }}
-                >
-                  <option value="report">Report</option>
-                  <option value="chart">Chart</option>
-                  <option value="data">Data</option>
-                  <option value="transcript">Transcript</option>
-                </select>
+                />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Content (Markdown)</label>

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -125,11 +125,23 @@ class InstrumentModel(Base):
     __tablename__ = "instruments"
 
     ticker: Mapped[str] = mapped_column(String(40), primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    exchange: Mapped[str] = mapped_column(String(10), nullable=False)
+    canonical_ticker: Mapped[str | None] = mapped_column(String(40))
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    company_name: Mapped[str | None] = mapped_column(String(200))
     sector: Mapped[str | None] = mapped_column(String(120))
     industry: Mapped[str | None] = mapped_column(String(120))
-    asset_class: Mapped[str] = mapped_column(String(40), nullable=False)
+    market_cap: Mapped[int | None] = mapped_column(BigInteger)
+    market_cap_bucket: Mapped[str | None] = mapped_column(String(40))
+    country: Mapped[str | None] = mapped_column(String(120))
+    currency: Mapped[str | None] = mapped_column(String(10))
+    exchange: Mapped[str | None] = mapped_column(String(20))
+    quote_type: Mapped[str | None] = mapped_column(String(40))
+    website: Mapped[str | None] = mapped_column(String(255))
+    summary: Mapped[str | None] = mapped_column(Text)
+    full_time_employees: Mapped[int | None] = mapped_column(Integer)
+    isin: Mapped[str | None] = mapped_column(String(40))
+    series: Mapped[str | None] = mapped_column(String(20))
+    raw_yfinance_info: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     aliases: Mapped[str] = mapped_column(
         Text, nullable=False, default="[]"
     )  # JSON array of lowercase aliases, e.g. ["tata motors", "tatamotor"]
@@ -138,20 +150,32 @@ class InstrumentModel(Base):
     )
 
 
-class WatchlistItem(Base):
-    """User watchlist entries.
-
-    The ``get_watchlist()`` service reads from the ``holdings`` table by default
-    (watchlist = current holdings) — this table is populated once a watchlist
-    management UI exists.  Callers of ``get_watchlist()`` are insulated from
-    this detail and will not need changes when the backing source switches.
-    """
-
-    __tablename__ = "watchlist_items"
+class WatchlistModel(Base):
+    __tablename__ = "watchlists"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    slug: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(40), nullable=False, default="custom") # "portfolio" | "custom"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+
+class WatchlistItem(Base):
+    """User watchlist entries."""
+
+    __tablename__ = "watchlist_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    watchlist_id: Mapped[str] = mapped_column(
+        ForeignKey("watchlists.id", ondelete="CASCADE"), nullable=False, index=True
     )
     canonical_ticker: Mapped[str] = mapped_column(String(40), nullable=False)
     exchange: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -226,6 +250,7 @@ class ResearchRunModel(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    watchlist_id: Mapped[str | None] = mapped_column(ForeignKey("watchlists.id", ondelete="SET NULL"), index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

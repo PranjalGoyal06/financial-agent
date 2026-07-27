@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WatchlistsView } from "./WatchlistsView";
 
 type PortfolioValuedRow = {
   id: string;
@@ -51,7 +52,10 @@ function formatRecommendation(rec: string | null): string {
   return rec.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+
+
 export function PortfolioZone() {
+  const [activeTab, setActiveTab] = useState<"holdings" | "watchlists">("holdings");
   const [data, setData] = useState<PortfolioValuedResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,64 +103,101 @@ export function PortfolioZone() {
 
   return (
     <div className="portfolio-zone" style={{ padding: "40px", overflowY: "auto", height: "100%" }}>
-      <h2 style={{ fontSize: "24px", color: "var(--text-primary)", marginBottom: "24px", fontWeight: "600" }}>Portfolio Dashboard</h2>
-      
-      {/* Summary Strip */}
-      <div style={{ 
-        display: "flex", 
-        gap: "24px", 
-        marginBottom: "32px",
-        flexWrap: "wrap"
-      }}>
-        <div style={{ 
-          background: "var(--surface-sunken)", 
-          padding: "20px", 
-          borderRadius: "12px",
-          minWidth: "200px",
-          flex: 1
-        }}>
-          <div style={{ color: "var(--text-tertiary)", fontSize: "14px", marginBottom: "8px" }}>Total Market Value</div>
-          <div style={{ fontSize: "28px", color: "var(--text-primary)", fontWeight: "bold" }}>
-            ₹{formatNumber(data.summary.total_market_value)}
-          </div>
-        </div>
-
-        <div style={{ 
-          background: "var(--surface-sunken)", 
-          padding: "20px", 
-          borderRadius: "12px",
-          minWidth: "200px",
-          flex: 1
-        }}>
-          <div style={{ color: "var(--text-tertiary)", fontSize: "14px", marginBottom: "8px" }}>Unrealized P&L</div>
-          <div style={{ 
-            fontSize: "28px", 
-            fontWeight: "bold",
-            color: data.summary.total_unrealized_pnl >= 0 ? "var(--green)" : "var(--red)" 
-          }}>
-            {data.summary.total_unrealized_pnl >= 0 ? "+" : ""}
-            ₹{formatNumber(data.summary.total_unrealized_pnl)}
-          </div>
-        </div>
-
-        <div style={{ 
-          background: "var(--surface-sunken)", 
-          padding: "20px", 
-          borderRadius: "12px",
-          minWidth: "200px",
-          flex: 1
-        }}>
-          <div style={{ color: "var(--text-tertiary)", fontSize: "14px", marginBottom: "8px" }}>Realized P&L</div>
-          <div style={{ 
-            fontSize: "28px", 
-            fontWeight: "bold",
-            color: data.summary.realized_pnl >= 0 ? "var(--green)" : "var(--red)" 
-          }}>
-            {data.summary.realized_pnl >= 0 ? "+" : ""}
-            ₹{formatNumber(data.summary.realized_pnl)}
-          </div>
-        </div>
+      <div style={{ display: "inline-flex", padding: "4px", background: "var(--surface-sunken)", borderRadius: "10px", border: "1px solid var(--border-color)", marginBottom: "32px" }}>
+        <button 
+          onClick={() => setActiveTab("holdings")}
+          style={{ 
+            padding: "8px 20px",
+            fontSize: "14px", 
+            fontWeight: "600", 
+            cursor: "pointer",
+            borderRadius: "7px",
+            border: "none",
+            background: activeTab === "holdings" ? "var(--surface)" : "transparent",
+            color: activeTab === "holdings" ? "var(--text-primary)" : "var(--text-tertiary)",
+            boxShadow: activeTab === "holdings" ? "0 2px 8px rgba(0, 0, 0, 0.2)" : "none",
+            transition: "all 0.2s ease"
+          }}
+        >
+          Portfolio Dashboard
+        </button>
+        <button 
+          onClick={() => setActiveTab("watchlists")}
+          style={{ 
+            padding: "8px 20px",
+            fontSize: "14px", 
+            fontWeight: "600", 
+            cursor: "pointer",
+            borderRadius: "7px",
+            border: "none",
+            background: activeTab === "watchlists" ? "var(--surface)" : "transparent",
+            color: activeTab === "watchlists" ? "var(--text-primary)" : "var(--text-tertiary)",
+            boxShadow: activeTab === "watchlists" ? "0 2px 8px rgba(0, 0, 0, 0.2)" : "none",
+            transition: "all 0.2s ease"
+          }}
+        >
+          Watchlists
+        </button>
       </div>
+      
+      {activeTab === "holdings" ? (
+        <>
+          {/* Summary Strip */}
+          <div style={{ 
+            display: "flex", 
+            gap: "24px", 
+            marginBottom: "32px",
+            flexWrap: "wrap"
+          }}>
+            <div style={{ 
+              background: "var(--surface-sunken)", 
+              padding: "20px", 
+              borderRadius: "12px",
+              minWidth: "200px",
+              flex: 1
+            }}>
+              <div style={{ color: "var(--text-tertiary)", fontSize: "14px", marginBottom: "8px" }}>Total Market Value</div>
+              <div style={{ fontSize: "28px", color: "var(--text-primary)", fontWeight: "bold" }}>
+                ₹{formatNumber(data.summary.total_market_value)}
+              </div>
+            </div>
+
+            <div style={{ 
+              background: "var(--surface-sunken)", 
+              padding: "20px", 
+              borderRadius: "12px",
+              minWidth: "200px",
+              flex: 1
+            }}>
+              <div style={{ color: "var(--text-tertiary)", fontSize: "14px", marginBottom: "8px" }}>Unrealized P&L</div>
+              <div style={{ 
+                fontSize: "28px", 
+                fontWeight: "bold",
+                color: data.summary.total_unrealized_pnl >= 0 ? "var(--green)" : "var(--red)" 
+              }}>
+                {data.summary.total_unrealized_pnl >= 0 ? "+" : ""}
+                ₹{formatNumber(data.summary.total_unrealized_pnl)}
+              </div>
+            </div>
+
+            <div style={{ 
+              background: "var(--surface-sunken)", 
+              padding: "20px", 
+              borderRadius: "12px",
+              minWidth: "200px",
+              flex: 1
+            }}>
+              <div style={{ color: "var(--text-tertiary)", fontSize: "14px", marginBottom: "8px" }}>Realized P&L</div>
+              <div style={{ 
+                fontSize: "28px", 
+                fontWeight: "bold",
+                color: data.summary.realized_pnl >= 0 ? "var(--green)" : "var(--red)" 
+              }}>
+                {data.summary.realized_pnl >= 0 ? "+" : ""}
+                ₹{formatNumber(data.summary.realized_pnl)}
+              </div>
+            </div>
+          </div>
 
       {/* Holdings Table */}
       <div style={{ background: "var(--surface)", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--border-color)" }}>
@@ -243,6 +284,10 @@ export function PortfolioZone() {
           </tbody>
         </table>
       </div>
+        </>
+      ) : (
+        <WatchlistsView />
+      )}
     </div>
   );
 }

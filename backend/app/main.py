@@ -32,6 +32,7 @@ from app.research.router import router as research_router
 from app.briefing.router import router as briefing_router
 from app.search.stocks_router import router as stocks_router
 from app.artifacts.router import router as artifacts_router
+from app.watchlist.router import router as watchlist_router
 from app.schemas import ChatHealthResponse, ChatRequest, ServiceStatus
 
 
@@ -57,6 +58,7 @@ app.include_router(research_router)
 app.include_router(briefing_router)
 app.include_router(stocks_router, prefix="/api/search")
 app.include_router(artifacts_router)
+app.include_router(watchlist_router)
 
 
 
@@ -154,12 +156,16 @@ async def stream_chat_events(
     session: AsyncSession,
     raw_request: Request | None = None,
 ) -> AsyncIterator[str]:
+    import uuid
+    current_thread_id = request.thread_id or str(uuid.uuid4())
+
     yield sse(
         "run_start",
         {
             "stage": "chat_response",
             "user_id": settings.default_user_id,
             "timestamp": utc_now(),
+            "thread_id": current_thread_id,
         },
     )
 
@@ -193,89 +199,96 @@ async def stream_chat_events(
     else:
         try:
             portfolio_context = await _build_portfolio_context(session)
+        except ValueError as exc:
+            yield sse("error", {"message": str(exc)})
+            return
+            
+    from app.checkpointer import get_checkpointer_context
+    async with get_checkpointer_context() as checkpointer:
+        if not is_compare and not is_create_artifact:
             agent = get_agent(
                 portfolio_context,
+                checkpointer=checkpointer,
                 provider=request.llm_provider,
                 model=request.llm_model,
             )
             input_dict = {"messages": [HumanMessage(content=request.message)]}
-        except ValueError as exc:
-            yield sse("error", {"message": str(exc)})
-            return
 
-    try:
-        # Before yielding from the graph, yield conversational text if we are a slash command without an LLM text node
-        if is_compare:
-            for word in "Sure! Let me fetch the market data to compare those for you.\n\n".split(" "):
-                yield sse("token", {"token": word + " "})
-        elif is_create_artifact:
-            for word in "I'll create that artifact for you right away.\n\n".split(" "):
-                yield sse("token", {"token": word + " "})
-                
-        async for event in agent.astream_events(
-            input_dict,
-            version="v2",
-        ):
-            if raw_request is not None and await raw_request.is_disconnected():
-                break
-
-            kind = event["event"]
-
-            if kind == "on_chat_model_stream":
-                token = event["data"]["chunk"].content
-                if isinstance(token, list):
-                    # Extract text from list of blocks (e.g. Claude/Gemini)
-                    texts = [b.get("text", "") for b in token if isinstance(b, dict) and "text" in b]
-                    token_str = "".join(texts)
-                else:
-                    token_str = str(token) if token else ""
+        try:
+            # Before yielding from the graph, yield conversational text if we are a slash command without an LLM text node
+            if is_compare:
+                for word in "Sure! Let me fetch the market data to compare those for you.\n\n".split(" "):
+                    yield sse("token", {"token": word + " "})
+            elif is_create_artifact:
+                for word in "I'll create that artifact for you right away.\n\n".split(" "):
+                    yield sse("token", {"token": word + " "})
                     
-                if token_str:
-                    yield sse("token", {"token": token_str})
+            config = {"configurable": {"thread_id": current_thread_id}}
+            async for event in agent.astream_events(
+                input_dict,
+                config,
+                version="v2",
+            ):
+                if raw_request is not None and await raw_request.is_disconnected():
+                    break
 
-            elif kind == "on_tool_start":
-                tool_name = event.get("name", "tool")
-                tool_input = event["data"].get("input", {})
-                yield sse(
-                    "tool_call",
-                    {
-                        "name": tool_name,
-                        "status": "running",
-                        "summary": f"Calling {tool_name.replace('_tool', '')}…",
-                        "input": tool_input,
-                    },
-                )
+                kind = event["event"]
 
-            elif kind == "on_tool_end":
-                tool_name = event.get("name", "tool")
-                tool_output = event["data"].get("output", "")
-                
-                raw_content = getattr(tool_output, "content", str(tool_output))
-                # ToolNode sets status="error" when ToolException is raised and
-                # handle_tool_error=True. That's the authoritative signal — no
-                # string heuristics needed.
-                is_error = getattr(tool_output, "status", None) == "error"
+                if kind == "on_chat_model_stream":
+                    token = event["data"]["chunk"].content
+                    if isinstance(token, list):
+                        # Extract text from list of blocks (e.g. Claude/Gemini)
+                        texts = [b.get("text", "") for b in token if isinstance(b, dict) and "text" in b]
+                        token_str = "".join(texts)
+                    else:
+                        token_str = str(token) if token else ""
+                        
+                    if token_str:
+                        yield sse("token", {"token": token_str})
 
-                yield sse(
-                    "tool_result",
-                    {
-                        "name": tool_name,
-                        "status": "failed" if is_error else "done",
-                        "summary": _tool_output_summary(tool_name, raw_content),
-                        "output": raw_content,
-                    },
-                )
-                
-            elif kind == "on_chain_end" and event.get("name") in ["parse_input", "fetch_data", "generate_comparison", "audit_persist", "render_card"]:
-                output = event.get("data", {}).get("output", {})
-                if isinstance(output, dict):
-                    if "error" in output and output["error"]:
-                        yield sse("error", {"message": output["error"]})
-                    elif "envelope" in output and output["envelope"]:
-                        envelope = output["envelope"]
-                        # If it's a Pydantic model, call model_dump()
-                        payload = envelope.model_dump() if hasattr(envelope, "model_dump") else envelope
-                        yield sse("card_render", payload)
+                elif kind == "on_tool_start":
+                    tool_name = event.get("name", "tool")
+                    tool_input = event["data"].get("input", {})
+                    yield sse(
+                        "tool_call",
+                        {
+                            "name": tool_name,
+                            "status": "running",
+                            "summary": f"Calling {tool_name.replace('_tool', '')}…",
+                            "input": tool_input,
+                        },
+                    )
+
+                elif kind == "on_tool_end":
+                    tool_name = event.get("name", "tool")
+                    tool_output = event["data"].get("output", "")
+                    
+                    raw_content = getattr(tool_output, "content", str(tool_output))
+                    is_error = getattr(tool_output, "status", None) == "error"
+
+                    yield sse(
+                        "tool_result",
+                        {
+                            "name": tool_name,
+                            "status": "failed" if is_error else "done",
+                            "summary": _tool_output_summary(tool_name, raw_content),
+                            "output": raw_content,
+                        },
+                    )
+                elif kind == "on_chain_end" and event.get("name") in ["parse_input", "fetch_data", "generate_comparison", "audit_persist", "render_card"]:
+                    output = event.get("data", {}).get("output", {})
+                    if isinstance(output, dict):
+                        if "error" in output and output["error"]:
+                            yield sse("error", {"message": output["error"]})
+                        elif "envelope" in output and output["envelope"]:
+                            envelope = output["envelope"]
+                            # If it's a Pydantic model, call model_dump()
+                            payload = envelope.model_dump() if hasattr(envelope, "model_dump") else envelope
+                            yield sse("card_render", payload)
+
+        except Exception as exc:
+            yield sse("error", {"message": f"Agent error: {str(exc)}"})
+
 
         resolved_provider = (request.llm_provider or settings.llm_provider).lower()
         if resolved_provider == "groq":
@@ -295,8 +308,7 @@ async def stream_chat_events(
             },
         )
 
-    except Exception as exc:
-        yield sse("error", {"message": f"LLM Connection Failed: {exc!s}"})
+
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────

@@ -24,6 +24,7 @@ from app.ta.tools import (
     compute_rsi_tool,
     compute_sma_tool,
 )
+from app.watchlist.tools import WATCHLIST_TOOLS
 
 # Unified toolset for the ReAct agent
 AGENT_TOOLS = [
@@ -38,6 +39,7 @@ AGENT_TOOLS = [
     compute_ema_tool,
     compute_rsi_tool,
     get_ticker_recommendation_tool,
+    *WATCHLIST_TOOLS,
 ]
 
 # Set handle_tool_error = True on all of them
@@ -112,8 +114,28 @@ class SequentialToolNode(ToolNode):
 # ── Agent factory ──────────────────────────────────────────────────────────────
 
 
+from langchain_core.messages.utils import trim_messages, count_tokens_approximately
+from langgraph.checkpoint.base import BaseCheckpointSaver
+
+def get_state_modifier(portfolio_context: str):
+    def state_modifier(state: dict) -> list[AnyMessage]:
+        system_prompt = SystemMessage(content=_SYSTEM_PROMPT_TEMPLATE.format(portfolio_context=portfolio_context))
+        
+        trimmed = trim_messages(
+            state["messages"],
+            max_tokens=8000,
+            strategy="last",
+            token_counter=count_tokens_approximately,
+            include_system=True,
+            start_on="human",
+        )
+        return [system_prompt] + trimmed
+        
+    return state_modifier
+
 def get_agent(
     portfolio_context: str,
+    checkpointer: BaseCheckpointSaver,
     provider: str | None = None,
     model: str | None = None,
 ) -> Any:
@@ -137,13 +159,10 @@ def get_agent(
     """
     llm = get_chat_model(temperature=0.1, streaming=True, provider=provider, model=model)
 
-    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
-        portfolio_context=portfolio_context
-    )
-
     return create_react_agent(
         llm,
         tools=SequentialToolNode(AGENT_TOOLS),
-        prompt=SystemMessage(content=system_prompt),
+        state_modifier=get_state_modifier(portfolio_context),
+        checkpointer=checkpointer,
         version="v1",
     )
