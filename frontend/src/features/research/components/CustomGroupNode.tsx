@@ -1,5 +1,5 @@
 import React from 'react';
-import { NodeProps, Node } from '@xyflow/react';
+import { NodeProps, Node, Handle } from '@xyflow/react';
 import { ChevronDown, ChevronRight, Activity, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { GraphNodeData } from './GraphNode';
 
@@ -74,6 +74,9 @@ export function CustomGroupNode({ id, data }: NodeProps<GroupNode>) {
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>
+
+      <Handle type="target" position={(data.targetPosition as any) || 'top'} style={{ opacity: 0 }} />
+      <Handle type="source" position={(data.sourcePosition as any) || 'bottom'} style={{ opacity: 0 }} />
     </div>
   );
 }

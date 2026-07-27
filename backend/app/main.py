@@ -171,6 +171,7 @@ async def stream_chat_events(
 
     is_compare = request.message.strip().startswith("/compare")
     is_create_artifact = request.message.strip().startswith("/create-artifact")
+    is_recommend = request.message.strip().startswith("/recommend")
 
     if is_compare:
         import uuid
@@ -196,6 +197,18 @@ async def stream_chat_events(
             "llm_provider": request.llm_provider or settings.llm_provider,
             "llm_model": request.llm_model,
         }
+    elif is_recommend:
+        import uuid
+        from app.recommend.graph import recommend_agent
+        
+        req_id = str(uuid.uuid4())
+        agent = recommend_agent
+        input_dict = {
+            "messages": [HumanMessage(content=request.message)],
+            "request_id": req_id,
+            "llm_provider": request.llm_provider or settings.llm_provider,
+            "llm_model": request.llm_model,
+        }
     else:
         try:
             portfolio_context = await _build_portfolio_context(session)
@@ -205,7 +218,7 @@ async def stream_chat_events(
             
     from app.checkpointer import get_checkpointer_context
     async with get_checkpointer_context() as checkpointer:
-        if not is_compare and not is_create_artifact:
+        if not is_compare and not is_create_artifact and not is_recommend:
             agent = get_agent(
                 portfolio_context,
                 checkpointer=checkpointer,
@@ -221,6 +234,9 @@ async def stream_chat_events(
                     yield sse("token", {"token": word + " "})
             elif is_create_artifact:
                 for word in "I'll create that artifact for you right away.\n\n".split(" "):
+                    yield sse("token", {"token": word + " "})
+            elif is_recommend:
+                for word in "Synthesizing a live recommendation for you...\n\n".split(" "):
                     yield sse("token", {"token": word + " "})
                     
             config = {"configurable": {"thread_id": current_thread_id}}
@@ -275,7 +291,7 @@ async def stream_chat_events(
                             "output": raw_content,
                         },
                     )
-                elif kind == "on_chain_end" and event.get("name") in ["parse_input", "fetch_data", "generate_comparison", "audit_persist", "render_card"]:
+                elif kind == "on_chain_end" and event.get("name") in ["parse_input", "fetch_data", "generate_comparison", "generate_card", "audit_persist", "render_card"]:
                     output = event.get("data", {}).get("output", {})
                     if isinstance(output, dict):
                         if "error" in output and output["error"]:
@@ -426,13 +442,12 @@ async def portfolio(session: AsyncSession = Depends(get_session)) -> dict[str, A
 _quote_provider = YFinanceProvider()
 
 
+from app.market_data.provider import normalize_ticker_symbol
+
 def _to_yf_symbol(ticker: str, exchange: str | None = None) -> str:
-    upper = ticker.upper()
-    if upper.endswith(".NS") or upper.endswith(".BO"):
-        return upper
-    if exchange and exchange.upper() in ("BSE", "BO"):
-        return f"{upper}.BO"
-    return f"{upper}.NS"
+    # We ignore exchange for now because normalize_ticker_symbol handles Indian market suffixes
+    # and aliases correctly, along with index prefixes like ^.
+    return normalize_ticker_symbol(ticker)
 
 
 def _get_sparkline(yf_symbol: str) -> list[float]:

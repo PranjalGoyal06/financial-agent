@@ -2239,3 +2239,107 @@ button:disabled {
   transform: translateY(-1px);
 }
 
+/* ==========================================================================
+   Recommendation Render
+   ========================================================================== */
+
+.recommendation-render {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  backdrop-filter: blur(10px);
+}
+
+.recommendation-render::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+}
+
+.recommendation-render.rec-buy::before { background: var(--success); }
+.recommendation-render.rec-hold::before { background: var(--warning); }
+.recommendation-render.rec-sell::before { background: var(--danger); }
+
+.recommendation-render__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.recommendation-render__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.title-icon {
+  color: var(--text-secondary);
+}
+
+.live-stance-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.recommendation-render__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-base);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+}
+
+.rec-stance {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.rec-buy .stance-icon, .rec-buy .stance-text { color: var(--success); }
+.rec-hold .stance-icon, .rec-hold .stance-text { color: var(--warning); }
+.rec-sell .stance-icon, .rec-sell .stance-text { color: var(--danger); }
+
+.rec-rationale {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.rec-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.footer-icon {
+  flex-shrink: 0;
+}
+

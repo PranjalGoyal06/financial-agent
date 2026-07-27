@@ -91,7 +91,7 @@ export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneP
   }, []);
 
   if (loading) {
-    return <div className="briefing-loader">Gathering morning briefing...</div>;
+    return <div className="briefing-loader">Gathering briefing...</div>;
   }
   if (error || !data) {
     return null; // silently fail or render nothing if backend is unreachable

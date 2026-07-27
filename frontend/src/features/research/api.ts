@@ -39,6 +39,12 @@ export const api = {
     return res.json();
   },
 
+  async cancelRun(run_id: string): Promise<{ status: string; message: string }> {
+    const res = await fetch(`/research/cancel/${encodeURIComponent(run_id)}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to cancel run');
+    return res.json();
+  },
+
   async getRuns(): Promise<{ runs: ResearchRun[] }> {
     const res = await fetch('/research/runs');
     if (!res.ok) throw new Error('Failed to fetch runs');

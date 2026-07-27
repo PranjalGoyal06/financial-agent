@@ -268,6 +268,22 @@ export function ResearchLayout() {
                 <Plus size={16} />
                 {isTriggering ? 'Starting...' : 'New Run'}
               </button>
+              {runStatus === 'running' && (
+                <button
+                  onClick={async () => {
+                    if (!selectedRunId) return;
+                    try {
+                      await api.cancelRun(selectedRunId);
+                    } catch (e) {
+                      alert('Failed to cancel run.');
+                    }
+                  }}
+                  className="research-btn"
+                  style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                >
+                  Stop Run
+                </button>
+              )}
             </div>
           </header>
 

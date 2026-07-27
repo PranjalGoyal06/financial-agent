@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.db import AsyncSessionLocal
+from app.market_data.provider import normalize_ticker_symbol
 from app.models import InstrumentModel
 from app.research.state import ResearchState
 from app.watchlist.service import get_watchlist
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 def _fetch_yf_metadata(ticker: str) -> dict:
     """Synchronous yfinance call to retrieve instrument metadata."""
     try:
-        t = yf.Ticker(ticker)
+        t = yf.Ticker(normalize_ticker_symbol(ticker))
         info = t.info
         
         market_cap = info.get("marketCap")

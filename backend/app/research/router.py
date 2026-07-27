@@ -26,15 +26,16 @@ router = APIRouter(prefix="/research", tags=["Research"])
 # Compiled graph singleton
 _research_graph = build_research_graph().compile()
 
+# Active Background Tasks Registry for Cancellation
+_ACTIVE_TASKS: dict[str, asyncio.Task] = {}
+
 # ── Background Task Runner ────────────────────────────────────────────────────
 
 async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | None = None) -> None:
     """Execute the compiled LangGraph workflow in the background."""
-    run_logger = get_run_logger(run_id)
-    run_logger.log_event("workflow", "node_start", f"Starting background deep research run {run_id}")
     logger.info("Starting background deep research | run_id=%s user_id=%s watchlist_id=%s", run_id, user_id, watchlist_id)
     
-    # Register run in DB
+    # Register run in DB first to satisfy foreign key constraints for events
     try:
         async with AsyncSessionLocal() as session:
             db_run = ResearchRunModel(id=run_id, user_id=user_id, watchlist_id=watchlist_id, status="running")
@@ -43,6 +44,9 @@ async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | Non
     except Exception as e:
         logger.error(f"Failed to create ResearchRunModel for {run_id}: {e}")
         return
+
+    run_logger = get_run_logger(run_id)
+    run_logger.log_event("workflow", "node_start", f"Starting background deep research run {run_id}")
 
     final_status = "failed"
     try:
@@ -67,11 +71,16 @@ async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | Non
         final_status = "completed"
         run_logger.log_event("workflow", "node_complete", f"Background deep research run {run_id} completed successfully")
         logger.info("Background deep research completed successfully | run_id=%s", run_id)
+    except asyncio.CancelledError:
+        final_status = "cancelled"
+        run_logger.log_event("workflow", "run_failed", f"Run {run_id} was cancelled by user")
+        logger.info("Background deep research run cancelled | run_id=%s", run_id)
     except Exception as exc:
         final_status = "failed"
         run_logger.log_exception("workflow", exc, f"Workflow execution failed for run_id={run_id}")
         logger.exception("Background deep research run failed | run_id=%s: %s", run_id, exc)
     finally:
+        _ACTIVE_TASKS.pop(run_id, None)
         # 1. Update ResearchRunModel status
         try:
             async with AsyncSessionLocal() as session:
@@ -103,12 +112,22 @@ async def trigger_research(
     run_id = f"run_{uuid4().hex[:12]}"
     
     # Spawn background task
-    asyncio.create_task(_run_research_graph(run_id, user_id, watchlist_id))
+    task = asyncio.create_task(_run_research_graph(run_id, user_id, watchlist_id))
+    _ACTIVE_TASKS[run_id] = task
     
     return {
         "run_id": run_id,
         "status": "running",
     }
+
+@router.post("/cancel/{run_id}")
+async def cancel_research(run_id: str) -> dict[str, str]:
+    """Cancel an active background deep research run."""
+    task = _ACTIVE_TASKS.get(run_id)
+    if task and not task.done():
+        task.cancel()
+        return {"status": "cancelled", "message": f"Run {run_id} cancellation requested."}
+    return {"status": "not_running", "message": f"Run {run_id} is not currently active."}
 
 @router.get("/status/{run_id}")
 async def get_run_status(run_id: str, session: AsyncSession = Depends(get_session)) -> dict[str, str]:

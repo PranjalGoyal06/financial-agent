@@ -5,23 +5,24 @@ import { Edge } from '@xyflow/react';
 
 // Hardcoded initial DAG layout
 export const initialNodes: AppNode[] = [
-  { id: 'plan_macro_sector', position: { x: 250, y: 50 }, data: { label: 'plan_macro_sector', status: 'pending' }, type: 'customNode' },
-  { id: 'collect_macro_sector', position: { x: 250, y: 150 }, data: { label: 'collect_macro_sector', status: 'pending' }, type: 'customNode' },
-  { id: 'discover_screen', position: { x: 250, y: 250 }, data: { label: 'discover_screen', status: 'pending' }, type: 'customNode' },
-  { id: 'plan_tickers', position: { x: 250, y: 350 }, data: { label: 'plan_tickers', status: 'pending' }, type: 'customNode' },
-  { id: 'collect_tickers_round1', position: { x: 250, y: 450 }, data: { label: 'collect_tickers_round1', status: 'pending' }, type: 'customNode' },
-  { id: 'evidence_triage', position: { x: 250, y: 550 }, data: { label: 'evidence_triage', status: 'pending' }, type: 'customNode' },
-  { id: 'collect_tickers_round2', position: { x: 250, y: 650 }, data: { label: 'collect_tickers_round2', status: 'pending' }, type: 'customNode' },
-  { id: 'macro_synthesis', position: { x: 250, y: 750 }, data: { label: 'macro_synthesis', status: 'pending' }, type: 'customNode' },
-  { id: 'sector_synthesis', position: { x: 250, y: 850 }, data: { label: 'sector_synthesis', status: 'pending' }, type: 'customNode' },
+  { id: 'plan_macro_sector', position: { x: 50, y: 50 }, data: { label: 'plan_macro_sector', status: 'pending' }, type: 'customNode' },
+  { id: 'collect_macro_sector', position: { x: 50, y: 150 }, data: { label: 'collect_macro_sector', status: 'pending' }, type: 'customNode' },
+  { id: 'discover_screen', position: { x: 50, y: 250 }, data: { label: 'discover_screen', status: 'pending' }, type: 'customNode' },
+  { id: 'plan_tickers', position: { x: 50, y: 350 }, data: { label: 'plan_tickers', status: 'pending' }, type: 'customNode' },
+  { id: 'collect_tickers_round1', position: { x: 50, y: 450 }, data: { label: 'collect_tickers_round1', status: 'pending' }, type: 'customNode' },
+  { id: 'evidence_triage', position: { x: 50, y: 550 }, data: { label: 'evidence_triage', status: 'pending' }, type: 'customNode' },
+  { id: 'collect_tickers_round2', position: { x: 50, y: 650 }, data: { label: 'collect_tickers_round2', status: 'pending', sourcePosition: 'right' }, type: 'customNode' },
+
+  { id: 'macro_synthesis', position: { x: 400, y: 650 }, data: { label: 'macro_synthesis', status: 'pending', targetPosition: 'left', sourcePosition: 'top' }, type: 'customNode' },
+  { id: 'sector_synthesis', position: { x: 400, y: 550 }, data: { label: 'sector_synthesis', status: 'pending', targetPosition: 'bottom', sourcePosition: 'top' }, type: 'customNode' },
   
   // Grouped Node: ticker_synthesis
   { 
     id: 'ticker_synthesis', 
-    position: { x: 200, y: 950 }, 
-    data: { label: 'ticker_synthesis', status: 'pending' },
+    position: { x: 400, y: 50 }, 
+    data: { label: 'ticker_synthesis', status: 'pending', targetPosition: 'bottom', sourcePosition: 'right' },
     style: { width: 300, height: 480, backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px dashed var(--line-strong)', borderRadius: '12px' },
-    type: 'group' // default react flow group
+    type: 'group' // will be rendered via CustomGroupNode
   },
   { id: 'ts_draft', position: { x: 25, y: 40 }, data: { label: 'draft', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
   { id: 'ts_critique', position: { x: 25, y: 120 }, data: { label: 'critique', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
@@ -29,36 +30,37 @@ export const initialNodes: AppNode[] = [
   { id: 'ts_cio', position: { x: 25, y: 280 }, data: { label: 'CIO judgment', status: 'pending', llmTier: 'tier-frontier' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
   { id: 'ts_validate', position: { x: 25, y: 360 }, data: { label: 'validate_citations', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
 
-  { id: 'reconcile', position: { x: 250, y: 1500 }, data: { label: 'reconcile_with_prior', status: 'pending', informational: true }, type: 'customNode' },
-  { id: 'portfolio_synthesis', position: { x: 250, y: 1600 }, data: { label: 'portfolio_synthesis', status: 'pending' }, type: 'customNode' },
-  { id: 'persist', position: { x: 250, y: 1700 }, data: { label: 'persist', status: 'pending' }, type: 'customNode' },
+  { id: 'reconcile', position: { x: 750, y: 50 }, data: { label: 'reconcile_with_prior', status: 'pending', informational: true, targetPosition: 'left', sourcePosition: 'bottom' }, type: 'customNode' },
+  { id: 'portfolio_synthesis', position: { x: 750, y: 150 }, data: { label: 'portfolio_synthesis', status: 'pending', targetPosition: 'top', sourcePosition: 'bottom' }, type: 'customNode' },
+  { id: 'persist', position: { x: 750, y: 250 }, data: { label: 'persist', status: 'pending', targetPosition: 'top', sourcePosition: 'bottom' }, type: 'customNode' },
 ];
 
 export const initialEdges: Edge[] = [
-  { id: 'e1', source: 'plan_macro_sector', target: 'collect_macro_sector', animated: true },
-  { id: 'e2', source: 'collect_macro_sector', target: 'discover_screen', animated: true },
-  { id: 'e3', source: 'discover_screen', target: 'plan_tickers', animated: true },
-  { id: 'e4', source: 'plan_tickers', target: 'collect_tickers_round1', animated: true },
-  { id: 'e5', source: 'collect_tickers_round1', target: 'evidence_triage', animated: true },
-  { id: 'e6', source: 'evidence_triage', target: 'collect_tickers_round2', animated: true },
-  { id: 'e7', source: 'collect_tickers_round2', target: 'macro_synthesis', animated: true },
-  { id: 'e8', source: 'macro_synthesis', target: 'sector_synthesis', animated: true },
-  { id: 'e9', source: 'sector_synthesis', target: 'ticker_synthesis', animated: true },
+  { id: 'e1', source: 'plan_macro_sector', target: 'collect_macro_sector', animated: true, type: 'smoothstep' },
+  { id: 'e2', source: 'collect_macro_sector', target: 'discover_screen', animated: true, type: 'smoothstep' },
+  { id: 'e3', source: 'discover_screen', target: 'plan_tickers', animated: true, type: 'smoothstep' },
+  { id: 'e4', source: 'plan_tickers', target: 'collect_tickers_round1', animated: true, type: 'smoothstep' },
+  { id: 'e5', source: 'collect_tickers_round1', target: 'evidence_triage', animated: true, type: 'smoothstep' },
+  { id: 'e6', source: 'evidence_triage', target: 'collect_tickers_round2', animated: true, type: 'smoothstep' },
+  { id: 'e7', source: 'collect_tickers_round2', target: 'macro_synthesis', animated: true, type: 'smoothstep' },
+  { id: 'e8', source: 'macro_synthesis', target: 'sector_synthesis', animated: true, type: 'smoothstep' },
+  { id: 'e9', source: 'sector_synthesis', target: 'ticker_synthesis', animated: true, type: 'smoothstep' },
   
   // Group internal edges
-  { id: 'e_ts1', source: 'ts_draft', target: 'ts_critique', animated: true },
-  { id: 'e_ts2', source: 'ts_critique', target: 'ts_revise', animated: true },
-  { id: 'e_ts3', source: 'ts_revise', target: 'ts_cio', animated: true },
-  { id: 'e_ts4', source: 'ts_cio', target: 'ts_validate', animated: true },
+  { id: 'e_ts1', source: 'ts_draft', target: 'ts_critique', animated: true, type: 'smoothstep' },
+  { id: 'e_ts2', source: 'ts_critique', target: 'ts_revise', animated: true, type: 'smoothstep' },
+  { id: 'e_ts3', source: 'ts_revise', target: 'ts_cio', animated: true, type: 'smoothstep' },
+  { id: 'e_ts4', source: 'ts_cio', target: 'ts_validate', animated: true, type: 'smoothstep' },
 
   { 
     id: 'e_ts_out', 
     source: 'ticker_synthesis', 
     target: 'reconcile', 
     animated: true,
+    type: 'smoothstep'
   },
-  { id: 'e10', source: 'reconcile', target: 'portfolio_synthesis', animated: false },
-  { id: 'e11', source: 'portfolio_synthesis', target: 'persist', animated: false },
+  { id: 'e10', source: 'reconcile', target: 'portfolio_synthesis', animated: false, type: 'smoothstep' },
+  { id: 'e11', source: 'portfolio_synthesis', target: 'persist', animated: false, type: 'smoothstep' },
 ];
 
 export function useResearchRun(runId: string | null) {

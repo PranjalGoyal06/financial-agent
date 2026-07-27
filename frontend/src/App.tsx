@@ -20,6 +20,7 @@ import {
   ToolCallBlock,
 } from "./components/ToolCallCard";
 import { ComparisonCardRender } from "./components/ComparisonCardRender";
+import { RecommendationCardRender } from "./components/RecommendationCardRender";
 import { ArtifactCardRender } from "./components/ArtifactCardRender";
 
 // ── Markdown ───────────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ type Message = {
 };
 
 type StreamEvent =
-  | { event: "run_start"; data: { stage: string; user_id: string; timestamp: string } }
+  | { event: "run_start"; data: { stage: string; user_id: string; timestamp: string; thread_id?: string } }
   | { event: "token"; data: { token: string } }
   | { event: "error"; data: { message: string } }
   | { event: "tool_call"; data: { name: string; status: string; summary: string; input: Record<string, unknown> } }
@@ -181,6 +182,8 @@ function AssistantBlocks({
             <ArtifactCardRender key={i} envelope={item.payload} />
           ) : item.payload.command === "compare" ? (
             <ComparisonCardRender key={i} envelope={item.payload} />
+          ) : item.payload.type === "recommendation_card" ? (
+            <RecommendationCardRender key={i} envelope={item.payload} />
           ) : null
         ) : (
           <ToolCallGroup key={i} blocks={item.items} isStreaming={isStreaming} />

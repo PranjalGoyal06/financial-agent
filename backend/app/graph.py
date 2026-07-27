@@ -162,7 +162,7 @@ def get_agent(
     return create_react_agent(
         llm,
         tools=SequentialToolNode(AGENT_TOOLS),
-        state_modifier=get_state_modifier(portfolio_context),
+        prompt=get_state_modifier(portfolio_context),
         checkpointer=checkpointer,
         version="v1",
     )

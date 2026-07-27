@@ -14,6 +14,21 @@ from app.config import settings
 T = TypeVar("T", bound=BaseModel)
 
 
+import asyncio
+
+_LOCAL_LLM_SEMAPHORE = asyncio.Semaphore(2)
+
+class ThrottledChatOllama(ChatOllama):
+    """ChatOllama wrapper that uses a global semaphore to throttle concurrent local inference."""
+    async def _agenerate(self, *args, **kwargs):
+        async with _LOCAL_LLM_SEMAPHORE:
+            return await super()._agenerate(*args, **kwargs)
+
+    async def _astream(self, *args, **kwargs):
+        async with _LOCAL_LLM_SEMAPHORE:
+            async for chunk in super()._astream(*args, **kwargs):
+                yield chunk
+
 def get_chat_model(
     temperature: float = 0.1,
     streaming: bool = False,
@@ -63,7 +78,7 @@ def get_chat_model(
         )
 
     if resolved_provider == "ollama":
-        return ChatOllama(
+        return ThrottledChatOllama(
             base_url=settings.ollama_base_url,
             model=model or settings.ollama_model,
             temperature=temperature,
@@ -81,7 +96,6 @@ def get_chat_model(
             model=target_model,
             temperature=temperature,
             streaming=streaming,
-            include_thoughts=True,
             max_retries=3,
         )
 

@@ -30,7 +30,7 @@ def normalize_ticker_symbol(ticker: str) -> str:
     cleaned = ticker.strip().upper()
     if cleaned in _TICKER_ALIASES:
         return _TICKER_ALIASES[cleaned]
-    if not (cleaned.endswith(".NS") or cleaned.endswith(".BO")):
+    if not (cleaned.endswith(".NS") or cleaned.endswith(".BO") or cleaned.startswith("^")):
         cleaned = f"{cleaned}.NS"
     return _TICKER_ALIASES.get(cleaned, cleaned)
 

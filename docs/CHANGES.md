@@ -1,5 +1,20 @@
 # Changes
 
+### [2026-07-27] — Hotfixes for Research Run Logging & Missing YFinance Tickers
+- Fixed a PostgreSQL `ForeignKeyViolationError` in `backend/app/research/router.py` by deferring the first `log_event` emission until after the `ResearchRunModel` is successfully committed to the database.
+- Fixed 404 errors for Indian stocks (like `LEMONTREE` and `TATAPOWER`) by explicitly wrapping raw ticker queries with `normalize_ticker_symbol` in `backend/app/research/nodes/planner.py` and updating `_to_yf_symbol` in `main.py` to use the unified normalizer.
+
+### [2026-07-27] — Fixed Index Data Retrieval & Added Briefing Cache
+- Fixed a bug in `backend/app/market_data/provider.py` where `normalize_ticker_symbol` erroneously appended `.NS` to market indices (like `^INDIAVIX` and `^NSEI`), causing 404s.
+- Implemented an in-memory 10-minute TTL cache in `backend/app/briefing/router.py` to prevent redundant computations and external API calls every time the home page is visited.
+- Wrapped local `ChatOllama` invocations in an `asyncio.Semaphore(2)` in `backend/app/llm/provider.py` to prevent severe OS freezing caused by unbounded concurrent local compute.
+- Implemented an `_ACTIVE_TASKS` registry in `router.py` along with a `POST /research/cancel/{run_id}` endpoint to gracefully abort background LangGraph processes via `asyncio.CancelledError`.
+- Added a "Stop Run" UI button in `ResearchLayout.tsx` for cancelling active jobs in real-time.
+- *Why:* Unbounded async fanout for local inference was causing Mac lockups. The new cancellation flow restores control to the user if a job gets stuck or takes too long.
+- Updated `backend/app/graph.py` to use `prompt` instead of `state_modifier` in `create_react_agent`.
+- Removed `include_thoughts=True` from `ChatGoogleGenerativeAI` in `backend/app/llm/provider.py` to resolve the `thought_signature` 400 validation error when using Gemini 3.1 Pro (High) with LangChain tools.
+- *Why:* Fixes a `TypeError` due to an incompatible API change in the installed LangGraph version, and fixes a tool calling issue with Gemini. No structural change.
+
 ### [2026-07-27] — Fixed Default Watchlist Bug
 - Fixed a missing database commit when dynamically generating the default "My Portfolio" watchlist, ensuring it persists across API requests.
 

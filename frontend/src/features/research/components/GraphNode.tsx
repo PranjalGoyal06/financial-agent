@@ -55,7 +55,7 @@ export function GraphNode({ id, data }: NodeProps<AppNode>) {
       className={classes}
       onClick={() => data.onNodeClick?.(id)}
     >
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={(data.targetPosition as Position) || Position.Top} style={{ opacity: 0 }} />
       
       <div className="graph-node__icon">
         {data.llmTier === 'tier-frontier' ? <Sparkles size={18} color="#9C27B0" /> : <Icon size={18} />}
@@ -72,7 +72,7 @@ export function GraphNode({ id, data }: NodeProps<AppNode>) {
         )}
       </div>
 
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="source" position={(data.sourcePosition as Position) || Position.Bottom} style={{ opacity: 0 }} />
     </div>
   );
 }
