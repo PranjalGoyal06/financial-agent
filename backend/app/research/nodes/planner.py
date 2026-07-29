@@ -14,6 +14,8 @@ from app.models import InstrumentModel
 from app.research.state import ResearchState
 from app.watchlist.service import get_watchlist
 from app.research.logger import get_run_logger
+from app.research.utils import run_concurrently
+from app.llm.provider import reset_gemini_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +144,7 @@ async def plan_macro_sector(state: ResearchState) -> dict:
     and metadata for each target ticker, and populates the sectors structure
     so that macro/sector collection can begin.
     """
+    reset_gemini_circuit_breaker()
     user_id = state.get("user_id") or "local-user"
     watchlist_id = state.get("watchlist_id")
     run_id = state.get("run_id")
@@ -150,6 +153,7 @@ async def plan_macro_sector(state: ResearchState) -> dict:
     logger.info("Plan Macro/Sector Node starting | user_id=%s watchlist_id=%s run_id=%s", user_id, watchlist_id, run_id)
 
     # 1. Fetch watchlist
+    run_logger.log_debug("plan_macro_sector", f"Fetching watchlist for user_id={user_id}, watchlist_id={watchlist_id}")
     async with AsyncSessionLocal() as session:
         watchlist = await get_watchlist(session, user_id, watchlist_id)
 
@@ -164,9 +168,11 @@ async def plan_macro_sector(state: ResearchState) -> dict:
             "errors": [msg],
         }
 
+    run_logger.log_debug("plan_macro_sector", f"Fetched {len(watchlist)} tickers from watchlist", {"watchlist": watchlist})
+
     # 2. Resolve sectors in parallel
     tasks = [_resolve_ticker_sector(t) for t in watchlist]
-    results = await asyncio.gather(*tasks)
+    results = await run_concurrently(tasks, execute_async=state.get("async_execution", True))
 
     # 3. Build structures
     ticker_to_sector = {}
@@ -185,6 +191,7 @@ async def plan_macro_sector(state: ResearchState) -> dict:
         sectors,
         ticker_to_sector,
     )
+    run_logger.log_debug("plan_macro_sector", f"Mapped {len(watchlist)} tickers to {len(sectors)} sectors", {"ticker_to_sector": ticker_to_sector, "sectors": sectors})
     run_logger.log_event("plan_macro_sector", "node_complete", f"Plan Macro/Sector complete. Mapped {len(watchlist)} tickers to {len(sectors)} sectors.")
 
     return {
@@ -206,24 +213,24 @@ async def plan_tickers(state: ResearchState) -> dict:
     discovered_tickers = state.get("discovered_tickers", [])
     run_id = state.get("run_id")
     run_logger = get_run_logger(run_id)
-    run_logger.log_event("plan_stock_universe", "node_start", f"Plan Tickers Node starting | run_id={run_id}")
+    run_logger.log_event("plan_tickers", "node_start", f"Plan Tickers Node starting | run_id={run_id}")
 
     logger.info(
-        "Plan Tickers Node starting | run_id=%s watchlist=%s discovered=%s",
+        "Plan Tickers Node starting | run_id=%s watchlist=%s",
         run_id,
         watchlist_tickers,
-        discovered_tickers,
     )
     
+    discovered_tickers = state.get("discovered_tickers", [])
     if not discovered_tickers:
-        logger.info("Plan Tickers Node: No discovered tickers to merge.")
+        run_logger.log_event("plan_tickers", "node_skipped", "Plan Tickers skipped (no discovered tickers)")
         return {}
 
     logger.info("Plan Tickers Node: Resolving metadata for %d discovered tickers", len(discovered_tickers))
     
     # 1. Resolve sectors for discovered tickers
     tasks = [_resolve_ticker_sector(t) for t in discovered_tickers]
-    results = await asyncio.gather(*tasks)
+    results = await run_concurrently(tasks, execute_async=state.get("async_execution", True))
 
     # 2. Update structures
     # We must merge with the existing ticker_to_sector map
@@ -245,7 +252,7 @@ async def plan_tickers(state: ResearchState) -> dict:
         final_tickers,
         discovered_tickers,
     )
-    run_logger.log_event("plan_stock_universe", "node_complete", f"Plan Tickers complete. Final universe size: {len(final_tickers)}.")
+    run_logger.log_event("plan_tickers", "node_complete", f"Plan Tickers complete. Final universe size: {len(final_tickers)}.")
 
     return {
         "tickers": final_tickers,

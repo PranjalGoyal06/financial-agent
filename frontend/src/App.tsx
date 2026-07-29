@@ -262,6 +262,7 @@ export function App() {
   const [healthData, setHealthData] = useState<any>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [chatThreadId, setChatThreadId] = useState<string | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState(AVAILABLE_MODELS[0].id);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   function stopStreaming() {
@@ -270,34 +271,17 @@ export function App() {
       abortControllerRef.current = null;
     }
   }
-  
-  const [selectedModelId, setSelectedModelId] = useState(() => {
-    const p = localStorage.getItem("paisa_llm_provider") || "groq";
-    const m = localStorage.getItem("paisa_llm_model");
-    if (m) {
-      const match = AVAILABLE_MODELS.find((opt) => opt.provider === p && opt.model === m);
-      if (match) return match.id;
-    }
-    const matchProvider = AVAILABLE_MODELS.find((opt) => opt.provider === p);
-    return matchProvider ? matchProvider.id : AVAILABLE_MODELS[0].id;
-  });
 
-  useEffect(() => {
-    const config = getSelectedModelConfig(selectedModelId);
-    localStorage.setItem("paisa_llm_provider", config.provider);
-    localStorage.setItem("paisa_llm_model", config.model);
-  }, [selectedModelId]);
-
-  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedModelId(e.target.value);
-  };
 
   // Portfolio state
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [portfolioStatus, setPortfolioStatus] = useState("Loading portfolio...");
-  const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
+  // Default open on home route
+  const [isPortfolioOpen, setIsPortfolioOpen] = useState(() => location.pathname === '/home' || location.pathname === '/');
   const [livePrices, setLivePrices] = useState<Record<string, any>>({});
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+  // Tracks whether we have already done the initial auto-refresh
+  const didAutoRefresh = useRef(false);
   
   // Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -306,7 +290,7 @@ export function App() {
   
   // ── Mentions State ─────────────────────────────────────────────────────────────
   const [triggerState, setTriggerState] = useState<{ activeTrigger: '/' | '$' | '@' | null, query: string, startIndex: number }>({ activeTrigger: null, query: "", startIndex: -1 });
-  const [suggestions, setSuggestions] = useState<{ id: string, label: string }[]>([]);
+  const [suggestions, setSuggestions] = useState<{ id: string, label: string, type?: string, replacement?: string }[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recognizedMentions, setRecognizedMentions] = useState<Map<string, { type: string, id: string, label: string }>>(new Map());
 
@@ -346,24 +330,46 @@ export function App() {
           setSuggestions([]);
         });
     } else if (triggerState.activeTrigger === '@') {
-      fetch('/api/watchlists')
-        .then(res => res.json())
-        .then(data => {
-          if (data && Array.isArray(data.watchlists)) {
-            const wls = data.watchlists.map((wl: any) => ({
+      // Fetch once and cache in a module-level variable to avoid spamming the backend on every keystroke
+      if (!(window as any)._mentionCache) {
+        Promise.all([
+          fetch('/api/watchlists').then(res => res.ok ? res.json() : null).catch(() => null),
+          fetch('/api/artifacts').then(res => res.ok ? res.json() : null).catch(() => null)
+        ]).then(([wlData, artData]) => {
+          let combined: { id: string, label: string, type: string, replacement: string }[] = [];
+          if (wlData && Array.isArray(wlData.watchlists)) {
+            combined.push(...wlData.watchlists.map((wl: any) => ({
               id: wl.slug,
-              label: wl.name
-            }));
-            setSuggestions(wls.filter((w: any) => 
-              w.id.toLowerCase().includes(query) || w.label.toLowerCase().includes(query)
-            ));
-            setSelectedIndex(0);
+              label: `[Watchlist] ${wl.name}`,
+              type: 'watchlist',
+              replacement: wl.slug
+            })));
           }
-        })
-        .catch(err => {
-          console.error("Failed to fetch watchlists", err);
+          if (artData && Array.isArray(artData.artifacts)) {
+            combined.push(...artData.artifacts.map((art: any) => ({
+              id: art.id,
+              label: `[Artifact] ${art.title}`,
+              type: 'artifact',
+              replacement: art.title.replace(/\s+/g, '_')
+            })));
+          }
+          (window as any)._mentionCache = combined;
+          
+          setSuggestions(combined.filter(w => 
+            w.replacement.toLowerCase().includes(query) || w.label.toLowerCase().includes(query)
+          ));
+          setSelectedIndex(0);
+        }).catch(err => {
+          console.error("Failed to fetch suggestions for @ command", err);
           setSuggestions([]);
         });
+      } else {
+        const combined = (window as any)._mentionCache;
+        setSuggestions(combined.filter((w: any) => 
+          w.replacement.toLowerCase().includes(query) || w.label.toLowerCase().includes(query)
+        ));
+        setSelectedIndex(0);
+      }
     }
   }, [triggerState]);
 
@@ -399,6 +405,21 @@ export function App() {
   useEffect(() => {
     void loadPortfolio();
   }, []);
+
+  // Auto-open the holdings sidebar whenever the user navigates to /home
+  useEffect(() => {
+    if (location.pathname === '/home' || location.pathname === '/') {
+      setIsPortfolioOpen(true);
+    }
+  }, [location.pathname]);
+
+  // Auto-refresh prices once the first time the sidebar is open with holdings loaded
+  useEffect(() => {
+    if (isPortfolioOpen && portfolio && portfolio.total_holdings > 0 && !didAutoRefresh.current) {
+      didAutoRefresh.current = true;
+      void refreshPrices();
+    }
+  }, [isPortfolioOpen, portfolio]);
 
   // Auto-scroll on new content
   useEffect(() => {
@@ -533,19 +554,20 @@ export function App() {
     }
   }
 
-  function insertMention(sugg: { id: string, label: string }) {
+  function insertMention(sugg: { id: string, label: string, type?: string, replacement?: string }) {
     if (triggerState.startIndex === -1 || !textareaRef.current) return;
     
     const before = input.slice(0, triggerState.startIndex);
     const after = input.slice(textareaRef.current.selectionStart);
     
-    const replacement = `${triggerState.activeTrigger}${sugg.id} `;
+    const replacementText = sugg.replacement || sugg.id;
+    const replacement = `${triggerState.activeTrigger}${replacementText} `;
     setInput(before + replacement + after);
     
     setRecognizedMentions(prev => {
       const next = new Map(prev);
       next.set(replacement.trim(), { 
-        type: triggerState.activeTrigger === '/' ? 'command' : (triggerState.activeTrigger === '$' ? 'ticker' : 'watchlist'), 
+        type: sugg.type || (triggerState.activeTrigger === '/' ? 'command' : (triggerState.activeTrigger === '$' ? 'ticker' : 'watchlist')), 
         id: sugg.id, 
         label: sugg.label 
       });
@@ -614,7 +636,17 @@ export function App() {
     const activeMentions = Array.from(recognizedMentions.values()).filter(m => message.includes(m.id));
 
     try {
-      const activeConfig = getSelectedModelConfig(selectedModelId);
+      const p = localStorage.getItem("paisa_llm_provider") || "groq";
+      const m = localStorage.getItem("paisa_llm_model");
+      let smId = AVAILABLE_MODELS[0].id;
+      if (m) {
+        const match = AVAILABLE_MODELS.find((opt) => opt.provider === p && opt.model === m);
+        if (match) smId = match.id;
+      } else {
+        const matchProvider = AVAILABLE_MODELS.find((opt) => opt.provider === p);
+        if (matchProvider) smId = matchProvider.id;
+      }
+      const activeConfig = getSelectedModelConfig(smId);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
@@ -751,9 +783,14 @@ export function App() {
       
       {/* ── Left Sidebar (Navigation) ── */}
       <aside className="sidebar" aria-label="Navigation">
-        <div className="sidebar__logo">
-          <div className="sidebar__logo-icon">P</div>
-          <div className="sidebar__logo-text">PAISA</div>
+        <div className="sidebar__logo-container">
+          <div className="sidebar__logo-lockup">
+            <div className="sidebar__logo-icon">P</div>
+            <div className="sidebar__logo-text">PAISA</div>
+          </div>
+          <div className="sidebar__logo-tagline">
+            Portfolio Analysis &<br />Investment Strategist Agent
+          </div>
         </div>
         
                 <nav className="nav-section">
@@ -1033,21 +1070,22 @@ function formatUpdatedDate(isoString: string): string {
 }
 
 function Sparkline({ data, isPositive: customIsPositive, width = 64, height = 24 }: { data: number[]; isPositive?: boolean; width?: number; height?: number }) {
-  if (!data || data.length < 2) return null;
+  const cleanData = (data || []).filter((v) => typeof v === "number" && !isNaN(v) && isFinite(v) && v > 0);
+  if (cleanData.length < 2) return null;
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  const min = Math.min(...cleanData);
+  const max = Math.max(...cleanData);
   const range = max - min || 1;
   const padding = 2;
   const effHeight = height - padding * 2;
 
-  const points = data.map((val, i) => {
-    const x = (i / (data.length - 1)) * width;
+  const points = cleanData.map((val, i) => {
+    const x = (i / (cleanData.length - 1)) * width;
     const y = height - padding - ((val - min) / range) * effHeight;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
 
-  const isPositive = customIsPositive !== undefined ? customIsPositive : data[data.length - 1] >= data[0];
+  const isPositive = customIsPositive !== undefined ? customIsPositive : cleanData[cleanData.length - 1] >= cleanData[0];
   const strokeColor = isPositive ? "var(--green)" : "var(--red)";
 
   return (

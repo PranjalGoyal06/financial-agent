@@ -235,7 +235,8 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
             target = a._meta.get("target", "")
             
             # Action desk conditions
-            is_high_conf = current_conf >= 80
+            is_high_conf = current_conf >= 60
+            is_actionable = current_rec in ("buy", "add", "reduce", "sell", "strong_sell")
             significant_shift = False
             change_context = None
             
@@ -251,8 +252,9 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
                     significant_shift = True
                     change_context = f"{'upgraded' if current_rec in ('buy', 'add') else 'downgraded'} from {prior_rec}"
 
-            if is_high_conf or significant_shift:
-                if target in holdings_tickers:
+            # Surface cards if ticker is in holdings, or if confidence/actionable criteria are met from the run
+            if is_high_conf or is_actionable or significant_shift:
+                if (not holdings_tickers) or (target in holdings_tickers) or is_high_conf or is_actionable:
                     try:
                         lines = [line.strip() for line in a.content_markdown.split('\n') if line.strip()]
                         # Grab the first line as a headline, strip hashes
@@ -315,7 +317,19 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
         has_overflow = total_qualifying > 5
         no_action_count = total_reviewed - total_qualifying if total_reviewed > total_qualifying else 0
 
-        # Process News: deduplicate, sort by published/fetched, take top 5
+        # Collect LLM citation frequencies across all artifacts (markdown + rationale)
+        import re
+        citation_counts: dict[str, int] = {}
+        for a in artifacts:
+            content_to_check = a.content_markdown or ""
+            if a._meta and isinstance(a._meta.get("rationale"), list):
+                content_to_check += " " + " ".join(a._meta["rationale"])
+            
+            found_citations = re.findall(r'\[([a-zA-Z0-9_]+)\]', content_to_check)
+            for c_id in found_citations:
+                citation_counts[c_id] = citation_counts.get(c_id, 0) + 1
+
+        # Process News: deduplicate, rank by AI citation count + recency, enforce diversity (max 2 per target)
         unique_urls = set()
         deduped_news = []
         for n in all_news:
@@ -324,11 +338,35 @@ async def get_briefing_data(session: AsyncSession, user_id: str) -> BriefingResp
                 unique_urls.add(url)
                 deduped_news.append(n)
         
-        def _get_sort_date(n: dict) -> str:
-            return n.get("published_at") or n.get("fetched_at") or ""
+        def _news_sort_key(n: dict):
+            item_id = n.get("id", "")
+            citations = citation_counts.get(item_id, 0)
+            date_str = n.get("published_at") or n.get("fetched_at") or ""
+            return (citations, date_str)
             
-        deduped_news.sort(key=_get_sort_date, reverse=True)
-        top_news_raw = deduped_news[:5]
+        deduped_news.sort(key=_news_sort_key, reverse=True)
+
+        # Enforce target diversity (max 2 articles per ticker/target)
+        target_counts: dict[str, int] = {}
+        diverse_news = []
+        for n in deduped_news:
+            t = n.get("target", "General")
+            count = target_counts.get(t, 0)
+            if count < 2:
+                diverse_news.append(n)
+                target_counts[t] = count + 1
+            if len(diverse_news) >= 5:
+                break
+        
+        # Fill remaining slots up to 5 if diverse cap was tight
+        if len(diverse_news) < 5:
+            for n in deduped_news:
+                if n not in diverse_news:
+                    diverse_news.append(n)
+                    if len(diverse_news) >= 5:
+                        break
+
+        top_news_raw = diverse_news[:5]
 
         for n in top_news_raw:
             dt_str = n.get("published_at") or n.get("fetched_at")

@@ -128,7 +128,12 @@ async def _write_cache(
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 
-async def search(query: str, max_results: int = 5) -> list[EvidenceItem]:
+async def search(
+    query: str,
+    max_results: int = 5,
+    topic: str = "news",
+    days: int = 7,
+) -> list[EvidenceItem]:
     """Search via Tavily and return results normalised to EvidenceItem.
 
     Cache-aware: results are stored in ``market_snapshots``
@@ -145,9 +150,16 @@ async def search(query: str, max_results: int = 5) -> list[EvidenceItem]:
                      macro outlook, sector + "India" etc.).
         max_results: Maximum number of results to return (1–10).
                      Lower values cost fewer Tavily credits.
+        topic:       Tavily search topic ("news" or "general"). Defaults to "news".
+        days:        Number of days back to search. Defaults to 7.
     """
     params_hash = make_params_hash(
-        "search", _SNAPSHOT_TYPE, query=query, max_results=str(max_results)
+        "search",
+        _SNAPSHOT_TYPE,
+        query=query,
+        max_results=str(max_results),
+        topic=topic,
+        days=str(days),
     )
 
     # ── Cache read ─────────────────────────────────────────────────────────────
@@ -161,10 +173,10 @@ async def search(query: str, max_results: int = 5) -> list[EvidenceItem]:
         logger.warning("TAVILY_API_KEY not set — search returning empty results")
         return []
 
-    logger.info("Tavily search (max=%d): %r", max_results, query)
+    logger.info("Tavily search (max=%d, topic=%s, days=%d): %r", max_results, topic, days, query)
     try:
         response_raw: dict = await asyncio.to_thread(
-            _call_tavily, query, max_results
+            _call_tavily, query, max_results, topic, days
         )
     except Exception as exc:
         logger.error("Tavily search failed for query %r: %s", query, exc)
@@ -185,7 +197,13 @@ async def search(query: str, max_results: int = 5) -> list[EvidenceItem]:
     return items
 
 
-def _call_tavily(query: str, max_results: int) -> dict:
+def _call_tavily(query: str, max_results: int, topic: str = "news", days: int = 7) -> dict:
     """Synchronous Tavily call — wrapped with asyncio.to_thread by the caller."""
     client = TavilyClient(api_key=settings.tavily_api_key)
-    return client.search(query, max_results=max_results, search_depth="basic")
+    return client.search(
+        query,
+        max_results=max_results,
+        search_depth="basic",
+        topic=topic,
+        days=days,
+    )

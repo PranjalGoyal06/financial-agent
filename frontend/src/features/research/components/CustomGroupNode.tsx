@@ -1,6 +1,6 @@
 import React from 'react';
 import { NodeProps, Node, Handle } from '@xyflow/react';
-import { ChevronDown, ChevronRight, Activity, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { ChevronDown, ChevronRight, Activity, CheckCircle2, XCircle, AlertTriangle, Clock, FastForward } from 'lucide-react';
 import { GraphNodeData } from './GraphNode';
 
 export type GroupNode = Node<GraphNodeData, 'customGroup'>;
@@ -10,7 +10,9 @@ const statusConfig = {
   running: { icon: Activity, color: 'var(--blue)' },
   completed: { icon: CheckCircle2, color: 'var(--green)' },
   failed: { icon: XCircle, color: 'var(--red)' },
+  warning: { icon: AlertTriangle, color: '#F59E0B' },
   blocked: { icon: Clock, color: '#F59E0B' },
+  skipped: { icon: FastForward, color: 'var(--muted)' },
 };
 
 export function CustomGroupNode({ id, data }: NodeProps<GroupNode>) {

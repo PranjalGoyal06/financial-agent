@@ -1,9 +1,12 @@
-import React from 'react';
-import { X, Terminal } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Terminal, Activity, FileJson } from 'lucide-react';
 import { GraphNodeData } from './GraphNode';
+import { ResearchRunEvent } from '../api';
 
 type NodeDetailsPanelProps = {
-  nodeData: GraphNodeData | null;
+  runId: string;
+  nodeData: GraphNodeData & { id?: string } | null;
+  events?: ResearchRunEvent[];
   onClose: () => void;
 };
 
@@ -29,10 +32,35 @@ const NODE_SUMMARIES: Record<string, string> = {
   persist: 'Saves the comprehensive research pack and generated artifacts securely to the database.'
 };
 
-export function NodeDetailsPanel({ nodeData, onClose }: NodeDetailsPanelProps) {
+export function NodeDetailsPanel({ runId, nodeData, events = [], onClose }: NodeDetailsPanelProps) {
   if (!nodeData) return null;
 
-  const summary = NODE_SUMMARIES[nodeData.id as string] || 'Executes specialized analysis tasks for the research pipeline.';
+  // Use nodeData.id or fallback to nodeData.label, since the label usually matches the key
+  const nodeId = (nodeData.id || nodeData.label || '') as string;
+  const summary = NODE_SUMMARIES[nodeId] || 'Executes specialized analysis tasks for the research pipeline.';
+
+  // Filter events strictly for this node. (The node ID is the source of truth).
+  const nodeEvents = events.filter(e => e.node === nodeId);
+  
+  const [terminalLogs, setTerminalLogs] = useState<any[]>([]);
+  const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
+
+  const fetchDetailedLogs = async () => {
+    if (!runId || !nodeId) return;
+    setIsFetchingLogs(true);
+    setLogsError(null);
+    try {
+      const res = await fetch(`/api/research/logs/${runId}?node=${nodeId}`);
+      if (!res.ok) throw new Error('Failed to fetch detailed logs');
+      const data = await res.json();
+      setTerminalLogs(data);
+    } catch (err) {
+      setLogsError(String(err));
+    } finally {
+      setIsFetchingLogs(false);
+    }
+  };
 
   return (
     <div className="research-panel" style={{ position: 'absolute', top: 0, right: 0, bottom: 0 }}>
@@ -53,31 +81,72 @@ export function NodeDetailsPanel({ nodeData, onClose }: NodeDetailsPanelProps) {
           {summary}
         </div>
 
-        {/* Terminal / Logs View */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
-          <h3 className="evidence-section__title" style={{ marginBottom: '8px' }}>
-            <Terminal size={14} />
-            Execution Logs
-          </h3>
-          <div className="node-logs">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>
+          <Activity size={14} /> Node Events & Logs
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '300px', gap: '12px' }}>
+          <div className="node-logs" style={{ flex: 1 }}>
             <div className="node-logs__line node-logs__line--system">[System] Node execution started...</div>
-            <div className="node-logs__line">Loading required context...</div>
+            {nodeEvents.length === 0 && (
+              <div className="node-logs__line">Loading required context...</div>
+            )}
+            
+            {nodeEvents.map((e, i) => (
+              <div key={i} className={`node-logs__line ${e.level === 'ERROR' ? 'node-logs__line--error' : ''}`}>
+                <span style={{ color: 'var(--muted)' }}>{new Date(e.timestamp).toLocaleTimeString()}</span>{' '}
+                {e.event_type === 'api_traffic' ? <span style={{ color: 'var(--blue)' }}>[API]</span> : null}
+                {e.event_type === 'llm_call' ? <span style={{ color: 'var(--purple)' }}>[LLM]</span> : null}
+                {e.event_type === 'triage_gate' ? <span style={{ color: 'var(--orange)' }}>[Triage]</span> : null}
+                {e.event_type === 'console' ? <span style={{ color: 'var(--green)' }}>[Log]</span> : null}
+                {' '}{e.summary}
+              </div>
+            ))}
             
             {nodeData.status === 'running' && (
-              <div className="node-logs__line" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4C6FB7' }}>
+              <div className="node-logs__line" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4C6FB7', marginTop: '8px' }}>
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4C6FB7', animation: 'pulse 2s infinite' }}></span>
                 Processing task...
               </div>
             )}
             
             {nodeData.status === 'completed' && (
-              <div className="node-logs__line node-logs__line--success">[System] Execution completed successfully.</div>
+              <div className="node-logs__line node-logs__line--success" style={{ marginTop: '8px' }}>[System] Execution completed successfully.</div>
             )}
             
             {nodeData.status === 'failed' && (
-              <div className="node-logs__line node-logs__line--error">[Error] Execution terminated unexpectedly.</div>
+              <div className="node-logs__line node-logs__line--error" style={{ marginTop: '8px' }}>[Error] Execution terminated unexpectedly.</div>
+            )}
+
+            {terminalLogs.length > 0 && (
+              <div style={{ marginTop: '16px', borderTop: '1px dashed var(--line)', paddingTop: '16px' }}>
+                <div className="node-logs__line node-logs__line--system" style={{ marginBottom: '8px' }}>
+                  --- RAW JSON PAYLOADS ---
+                </div>
+                {terminalLogs.map((log, i) => (
+                  <div key={i} style={{ marginBottom: '16px' }}>
+                    <div style={{ color: 'var(--muted)', fontSize: '11px', marginBottom: '4px' }}>
+                      {new Date(log.timestamp).toLocaleTimeString()} - {log.action}
+                    </div>
+                    <pre style={{ margin: 0, padding: '12px', background: '#0a0a0a', borderRadius: '4px', overflowX: 'auto', fontSize: '11px', color: '#a0aec0', fontFamily: 'monospace' }}>
+                      {JSON.stringify(log.details, null, 2)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
+          
+          <button 
+            className="research-btn research-btn--secondary" 
+            onClick={fetchDetailedLogs}
+            disabled={isFetchingLogs}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            <FileJson size={14} />
+            {isFetchingLogs ? 'Fetching...' : 'Fetch Detailed Payloads'}
+          </button>
+          {logsError && <div style={{ color: 'var(--red)', fontSize: '12px' }}>{logsError}</div>}
         </div>
       </div>
     </div>

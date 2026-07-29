@@ -19,7 +19,7 @@ from app.models import Artifact, ResearchRunModel, ResearchRunEventModel, Resear
 from app.portfolio.lib import get_ticker_recommendation
 from app.research.graph import build_research_graph
 from app.watchlist.service import get_watchlist
-from app.research.logger import get_run_logger, get_sse_queue, cleanup_sse_queue
+from app.research.logger import get_run_logger, get_new_sse_queue, cleanup_sse_queue, remove_sse_queue
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/research", tags=["Research"])
@@ -32,7 +32,7 @@ _ACTIVE_TASKS: dict[str, asyncio.Task] = {}
 
 # ── Background Task Runner ────────────────────────────────────────────────────
 
-async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | None = None) -> None:
+async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | None = None, async_execution: bool = True) -> None:
     """Execute the compiled LangGraph workflow in the background."""
     logger.info("Starting background deep research | run_id=%s user_id=%s watchlist_id=%s", run_id, user_id, watchlist_id)
     
@@ -55,7 +55,9 @@ async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | Non
             "run_id": run_id,
             "user_id": user_id,
             "watchlist_id": watchlist_id,
+            "async_execution": async_execution,
             "tickers": [],
+            "discovered_tickers": [],
             "sectors": [],
             "ticker_to_sector": {},
             "macro_evidence": None,
@@ -113,13 +115,14 @@ async def _run_research_graph(run_id: str, user_id: str, watchlist_id: str | Non
 @router.post("/trigger", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_research(
     watchlist_id: str | None = Query(default=None, description="Optional ID of a specific watchlist to run against"),
+    async_execution: bool = Query(default=True, description="Whether to run research steps asynchronously"),
     user_id: str = settings.default_user_id,
 ) -> dict[str, str]:
     """Trigger a deep research analysis workflow run in the background."""
     run_id = f"run_{uuid4().hex[:12]}"
     
     # Spawn background task
-    task = asyncio.create_task(_run_research_graph(run_id, user_id, watchlist_id))
+    task = asyncio.create_task(_run_research_graph(run_id, user_id, watchlist_id, async_execution))
     _ACTIVE_TASKS[run_id] = task
     
     return {
@@ -154,6 +157,39 @@ async def get_run_status(run_id: str, session: AsyncSession = Depends(get_sessio
         "status": status_val,
     }
 
+@router.get("/logs/{run_id}")
+async def get_run_logs(run_id: str, node: str | None = None):
+    """Retrieve Tier-2 granular JSONL logs for a run."""
+    import os
+    import asyncio
+    
+    log_dir = "logs/runs"
+    filepath = os.path.join(log_dir, f"{run_id}.jsonl")
+    
+    if not os.path.exists(filepath):
+        return []
+        
+    logs = []
+    try:
+        def read_logs():
+            with open(filepath, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        if node and entry.get("node") != node:
+                            continue
+                        logs.append(entry)
+                    except json.JSONDecodeError:
+                        continue
+        
+        await asyncio.to_thread(read_logs)
+    except Exception as e:
+        logger.error(f"Failed to read logs for run {run_id}: {e}")
+        
+    return logs
+
 @router.get("/stream/{run_id}")
 async def stream_run_events(run_id: str, session: AsyncSession = Depends(get_session)):
     """SSE endpoint for live-streaming run events, replays backlog first."""
@@ -167,45 +203,62 @@ async def stream_run_events(run_id: str, session: AsyncSession = Depends(get_ses
         raise HTTPException(status_code=404, detail="Run not found")
         
     async def event_generator():
-        # 1. Backlog Replay
-        async with AsyncSessionLocal() as replay_session:
-            backlog_stmt = select(ResearchRunEventModel).where(ResearchRunEventModel.run_id == run_id).order_by(ResearchRunEventModel.created_at.asc())
-            backlog_res = await replay_session.execute(backlog_stmt)
-            for ev in backlog_res.scalars():
-                data = {
-                    "timestamp": ev.created_at.isoformat(),
-                    "run_id": ev.run_id,
-                    "node": ev.node,
-                    "target": ev.target,
-                    "level": ev.level,
-                    "event_type": ev.event_type,
-                    "summary": ev.summary,
-                    "payload": ev.payload_json,
-                }
-                yield f"event: node_event\ndata: {json.dumps(data)}\n\n"
+        # 1. Subscribe to SSE live events FIRST to prevent race condition
+        queue = get_new_sse_queue(run_id)
         
-        # Check if run is already completed before entering live subscription
-        async with AsyncSessionLocal() as check_session:
-            check_res = await check_session.execute(select(ResearchRunModel.status).where(ResearchRunModel.id == run_id))
-            status_val = check_res.scalar_one_or_none()
-            if status_val in ("completed", "failed", "cancelled"):
-                return
-                
-        # 2. Live Subscription
-        queue = get_sse_queue(run_id)
-        while True:
-            try:
-                event = await asyncio.wait_for(queue.get(), timeout=2.0)
-                yield f"event: node_event\ndata: {json.dumps(event)}\n\n"
-                queue.task_done()
-                if event.get("event_type") in ("run_completed", "run_failed", "run_cancelled"):
-                    break
-            except asyncio.TimeoutError:
-                # Keep-alive or check run status
-                async with AsyncSessionLocal() as check_session:
-                    check_res = await check_session.execute(select(ResearchRunModel.status).where(ResearchRunModel.id == run_id))
-                    if check_res.scalar_one_or_none() in ("completed", "failed", "cancelled"):
+        seen_events = set()
+
+        try:
+            # 2. Backlog Replay
+            async with AsyncSessionLocal() as replay_session:
+                backlog_stmt = select(ResearchRunEventModel).where(ResearchRunEventModel.run_id == run_id).order_by(ResearchRunEventModel.created_at.asc())
+                backlog_res = await replay_session.execute(backlog_stmt)
+                for ev in backlog_res.scalars():
+                    data = {
+                        "timestamp": ev.created_at.isoformat(),
+                        "run_id": ev.run_id,
+                        "node": ev.node,
+                        "target": ev.target,
+                        "level": ev.level,
+                        "event_type": ev.event_type,
+                        "summary": ev.summary,
+                        "payload": ev.payload_json,
+                    }
+                    event_hash = f"{data['timestamp']}-{data['node']}-{data['event_type']}"
+                    seen_events.add(event_hash)
+                    yield f"event: node_event\ndata: {json.dumps(data)}\n\n"
+        
+            # Check if run is already completed before entering live subscription
+            async with AsyncSessionLocal() as check_session:
+                check_res = await check_session.execute(select(ResearchRunModel.status).where(ResearchRunModel.id == run_id))
+                status_val = check_res.scalar_one_or_none()
+                if status_val in ("completed", "failed", "cancelled"):
+                    yield f"event: node_event\ndata: {json.dumps({'event_type': 'run_' + status_val, 'run_id': run_id, 'timestamp': utc_now().isoformat()})}\n\n"
+                    return
+                elif status_val == "running" and run_id not in _ACTIVE_TASKS:
+                    yield f"event: node_event\ndata: {json.dumps({'event_type': 'run_failed', 'run_id': run_id, 'timestamp': utc_now().isoformat(), 'summary': 'Run interrupted (process restarted)'})}\n\n"
+                    return
+                    
+            # 3. Live Subscription
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=2.0)
+                    event_hash = f"{event['timestamp']}-{event['node']}-{event['event_type']}"
+                    if event_hash not in seen_events:
+                        seen_events.add(event_hash)
+                        yield f"event: node_event\ndata: {json.dumps(event)}\n\n"
+                    
+                    queue.task_done()
+                    if event.get("event_type") in ("run_completed", "run_failed", "run_cancelled"):
                         break
+                except asyncio.TimeoutError:
+                    # Keep-alive or check run status
+                    async with AsyncSessionLocal() as check_session:
+                        check_res = await check_session.execute(select(ResearchRunModel.status).where(ResearchRunModel.id == run_id))
+                        if check_res.scalar_one_or_none() in ("completed", "failed", "cancelled"):
+                            break
+        finally:
+            remove_sse_queue(run_id, queue)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -305,18 +358,30 @@ async def delete_run(
 @router.post("/schedule")
 async def create_schedule(
     cron_expression: str,
+    watchlist_id: str | None = None,
     user_id: str = settings.default_user_id,
     session: AsyncSession = Depends(get_session)
 ) -> dict[str, Any]:
     """Create a scheduled run."""
-    db_sched = ResearchScheduleModel(user_id=user_id, cron_expression=cron_expression)
+    from app.research.scheduler import register_schedule_job
+    db_sched = ResearchScheduleModel(
+        user_id=user_id,
+        cron_expression=cron_expression,
+        watchlist_id=watchlist_id
+    )
     session.add(db_sched)
     await session.commit()
+    await session.refresh(db_sched)
+    
+    # Dynamically register job in APScheduler
+    register_schedule_job(db_sched.id, db_sched.cron_expression, db_sched.user_id, db_sched.watchlist_id)
     
     return {
         "id": db_sched.id,
         "cron_expression": db_sched.cron_expression,
+        "watchlist_id": db_sched.watchlist_id,
         "is_active": db_sched.is_active,
+        "created_at": db_sched.created_at.isoformat() if db_sched.created_at else None,
     }
 
 @router.get("/schedules")
@@ -324,21 +389,35 @@ async def list_schedules(
     user_id: str = settings.default_user_id,
     session: AsyncSession = Depends(get_session)
 ) -> dict[str, list[dict]]:
-    """List active scheduled runs."""
+    """List active scheduled runs with Next Run Time & Watchlist metadata."""
+    from app.research.scheduler import scheduler
+    from app.models import WatchlistModel
+    
     stmt = select(ResearchScheduleModel).where(ResearchScheduleModel.user_id == user_id)
     res = await session.execute(stmt)
     schedules = res.scalars().all()
     
-    return {
-        "schedules": [
-            {
-                "id": s.id,
-                "cron_expression": s.cron_expression,
-                "is_active": s.is_active,
-            }
-            for s in schedules
-        ]
-    }
+    # Load watchlists for name mapping
+    wl_stmt = select(WatchlistModel)
+    wl_res = await session.execute(wl_stmt)
+    watchlists = {w.id: w.name for w in wl_res.scalars().all()}
+    
+    result = []
+    for s in schedules:
+        job = scheduler.get_job(s.id)
+        next_run_time = job.next_run_time.isoformat() if (job and job.next_run_time) else None
+        
+        result.append({
+            "id": s.id,
+            "cron_expression": s.cron_expression,
+            "watchlist_id": s.watchlist_id,
+            "watchlist_name": watchlists.get(s.watchlist_id) if s.watchlist_id else "Default (All Holdings)",
+            "is_active": s.is_active,
+            "next_run_time": next_run_time,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        })
+        
+    return {"schedules": result}
 
 @router.delete("/schedules/{schedule_id}")
 async def delete_schedule(
@@ -346,6 +425,9 @@ async def delete_schedule(
     session: AsyncSession = Depends(get_session)
 ) -> dict[str, str]:
     """Delete a scheduled run."""
+    from app.research.scheduler import unregister_schedule_job
+    unregister_schedule_job(schedule_id)
+    
     stmt = delete(ResearchScheduleModel).where(ResearchScheduleModel.id == schedule_id)
     await session.execute(stmt)
     await session.commit()

@@ -21,6 +21,10 @@ export function SettingsZone() {
     return localStorage.getItem("paisa_stream_responses") !== "false";
   });
 
+  const [asyncResearch, setAsyncResearch] = useState(() => {
+    return localStorage.getItem("paisa_async_research") !== "false";
+  });
+
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.setAttribute("data-theme", "dark");
@@ -40,6 +44,10 @@ export function SettingsZone() {
   useEffect(() => {
     localStorage.setItem("paisa_stream_responses", String(streamResponses));
   }, [streamResponses]);
+
+  useEffect(() => {
+    localStorage.setItem("paisa_async_research", String(asyncResearch));
+  }, [asyncResearch]);
 
   return (
     <div className="settings-zone">
@@ -128,6 +136,22 @@ export function SettingsZone() {
                   onChange={(e) => setStreamResponses(e.target.checked)}
                 />
                 <label htmlFor="stream-toggle" className="toggle-slider"></label>
+              </div>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
+                <label>Parallel Research Execution</label>
+                <span>Run pipeline tasks asynchronously (uncheck for strictly sequential execution, useful for local models)</span>
+              </div>
+              <div className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  id="async-research-toggle"
+                  checked={asyncResearch}
+                  onChange={(e) => setAsyncResearch(e.target.checked)}
+                />
+                <label htmlFor="async-research-toggle" className="toggle-slider"></label>
               </div>
             </div>
           </div>

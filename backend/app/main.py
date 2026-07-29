@@ -246,16 +246,16 @@ async def stream_chat_events(
             
     from app.checkpointer import get_checkpointer_context
     async with get_checkpointer_context() as checkpointer:
-        if not is_compare and not is_create_artifact and not is_recommend:
-            agent = get_agent(
-                portfolio_context,
-                checkpointer=checkpointer,
-                provider=request.llm_provider,
-                model=request.llm_model,
-            )
-            input_dict = {"messages": [HumanMessage(content=request.message)]}
-
         try:
+            if not is_compare and not is_create_artifact and not is_recommend:
+                agent = get_agent(
+                    portfolio_context,
+                    checkpointer=checkpointer,
+                    provider=request.llm_provider,
+                    model=request.llm_model,
+                )
+                input_dict = {"messages": [HumanMessage(content=request.message)]}
+
             # Before yielding from the graph, yield conversational text if we are a slash command without an LLM text node
             if is_compare:
                 for word in "Sure! Let me fetch the market data to compare those for you.\n\n".split(" "):

@@ -14,12 +14,17 @@ export interface ResearchRunEvent {
   level: string;
   summary: string;
   payload: any;
+  details?: any;
 }
 
 export interface ResearchSchedule {
   id: string;
   cron_expression: string;
+  watchlist_id?: string | null;
+  watchlist_name?: string | null;
   is_active: boolean;
+  next_run_time?: string | null;
+  created_at?: string | null;
 }
 
 export interface Watchlist {
@@ -30,11 +35,15 @@ export interface Watchlist {
 }
 
 export const api = {
-  async triggerRun(watchlist_id?: string): Promise<{ run_id: string; status: string }> {
+  async triggerRun(watchlist_id?: string, async_execution: boolean = true): Promise<{ run_id: string; status: string }> {
     let url = '/api/research/trigger';
+    const params = new URLSearchParams();
     if (watchlist_id) {
-      url += `?watchlist_id=${encodeURIComponent(watchlist_id)}`;
+      params.append('watchlist_id', watchlist_id);
     }
+    params.append('async_execution', String(async_execution));
+    
+    url += `?${params.toString()}`;
     const res = await fetch(url, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to trigger run');
     return res.json();
@@ -77,6 +86,20 @@ export const api = {
     }
     const res = await fetch(url, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to schedule run');
+    return res.json();
+  },
+
+  async getSchedules(): Promise<{ schedules: ResearchSchedule[] }> {
+    const res = await fetch('/api/research/schedules');
+    if (!res.ok) throw new Error('Failed to fetch schedules');
+    return res.json();
+  },
+
+  async deleteSchedule(schedule_id: string): Promise<{ status: string }> {
+    const res = await fetch(`/api/research/schedules/${encodeURIComponent(schedule_id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete schedule');
     return res.json();
   },
 

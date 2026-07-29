@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -17,8 +18,79 @@ _BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
 # Global dictionary of active SSE queues keyed by run_id
-_SSE_QUEUES: dict[str, asyncio.Queue] = {}
+# Now supports multiple subscribers per run (Broadcasting)
+_SSE_QUEUES: dict[str, list[asyncio.Queue]] = {}
 
+# Global queue for sequential DB writes to guarantee chronological ordering
+_DB_QUEUE = asyncio.Queue()
+_DB_WORKER_TASK: asyncio.Task | None = None
+
+def _ensure_global_db_worker() -> None:
+    global _DB_WORKER_TASK
+    if _DB_WORKER_TASK is None:
+        try:
+            loop = asyncio.get_running_loop()
+            
+            async def global_db_worker():
+                while True:
+                    task_data = await _DB_QUEUE.get()
+                    if task_data is None:
+                        break
+                    logger_instance, event = task_data
+                    await logger_instance._async_db_write(event)
+                    
+                    # Push to SSE Queues strictly AFTER DB write to prevent race conditions
+                    queues = _SSE_QUEUES.get(logger_instance.run_id, [])
+                    for q in queues:
+                        try:
+                            q.put_nowait(event)
+                        except Exception as e:
+                            logger.error(f"Failed to push to SSE queue: {e}")
+                            
+                    _DB_QUEUE.task_done()
+                    
+            _DB_WORKER_TASK = loop.create_task(global_db_worker())
+            _BACKGROUND_TASKS.add(_DB_WORKER_TASK)
+            _DB_WORKER_TASK.add_done_callback(_BACKGROUND_TASKS.discard)
+        except RuntimeError:
+            logger.error("No running event loop to start global DB worker")
+
+# Global queue for sequential JSONL file writes
+_FILE_QUEUE = asyncio.Queue()
+_FILE_WORKER_TASK: asyncio.Task | None = None
+
+def _ensure_global_file_worker() -> None:
+    global _FILE_WORKER_TASK
+    if _FILE_WORKER_TASK is None:
+        try:
+            loop = asyncio.get_running_loop()
+            
+            async def global_file_worker():
+                while True:
+                    task_data = await _FILE_QUEUE.get()
+                    if task_data is None:
+                        break
+                    run_id, event = task_data
+                    
+                    def write_to_file():
+                        log_dir = "logs/runs"
+                        os.makedirs(log_dir, exist_ok=True)
+                        filepath = os.path.join(log_dir, f"{run_id}.jsonl")
+                        with open(filepath, "a", encoding="utf-8") as f:
+                            f.write(json.dumps(event) + "\n")
+                            
+                    try:
+                        await asyncio.to_thread(write_to_file)
+                    except Exception as e:
+                        logger.error(f"Failed to write to JSONL log for run {run_id}: {e}")
+                            
+                    _FILE_QUEUE.task_done()
+                    
+            _FILE_WORKER_TASK = loop.create_task(global_file_worker())
+            _BACKGROUND_TASKS.add(_FILE_WORKER_TASK)
+            _FILE_WORKER_TASK.add_done_callback(_BACKGROUND_TASKS.discard)
+        except RuntimeError:
+            logger.error("No running event loop to start global FILE worker")
 
 class ResearchRunLogger:
     """System-level (Tier-1) logger for a deep research run.
@@ -40,6 +112,7 @@ class ResearchRunLogger:
                     level=event_dict["level"],
                     summary=event_dict["summary"],
                     payload_json=event_dict["payload"],
+                    created_at=datetime.fromisoformat(event_dict["timestamp"]),
                 )
                 session.add(db_event)
                 await session.commit()
@@ -49,7 +122,7 @@ class ResearchRunLogger:
     def log_event(
         self,
         node: str,
-        event_type: Literal["node_start", "node_complete", "node_error", "llm_call", "api_traffic", "triage_gate", "drift_report", "exception", "run_completed", "run_failed", "run_cancelled"],
+        event_type: Literal["node_start", "node_complete", "node_skipped", "node_error", "llm_call", "api_traffic", "triage_gate", "drift_report", "exception", "run_completed", "run_failed", "run_cancelled"],
         summary: str,
         payload: dict[str, Any] | None = None,
         level: Literal["INFO", "WARNING", "ERROR", "DEBUG"] = "INFO",
@@ -67,24 +140,9 @@ class ResearchRunLogger:
             "payload": payload or {},
         }
 
-        # 1. Push to SSE Queue if exists
-        queue = _SSE_QUEUES.get(self.run_id)
-        if queue is not None:
-            try:
-                queue.put_nowait(event)
-            except Exception as e:
-                logger.error(f"Failed to push event to SSE queue for run {self.run_id}: {e}")
-
-        # 2. Write to DB asynchronously in the background
-        try:
-            loop = asyncio.get_running_loop()
-            task = loop.create_task(self._async_db_write(event))
-            _BACKGROUND_TASKS.add(task)
-            task.add_done_callback(_BACKGROUND_TASKS.discard)
-        except RuntimeError:
-            # If no running loop, we can't write to DB in the background like this.
-            # This shouldn't happen during a FastAPI request/background task.
-            logger.error(f"No running event loop to write DB event for run {self.run_id}")
+        # 2. Write to DB sequentially in the background (which then pushes to SSE)
+        _ensure_global_db_worker()
+        _DB_QUEUE.put_nowait((self, event))
 
     def log_llm_call(
         self,
@@ -145,17 +203,11 @@ class ResearchRunLogger:
 
     def log_exception(self, node: str, exception: Exception, context: str = "", target: str | None = None) -> None:
         """Log an exception trace."""
-        payload = {
-            "exception_type": type(exception).__name__,
-            "exception_message": str(exception),
-            "context": context,
-            "traceback": traceback.format_exc(),
-        }
         self.log_event(
-            node=node,
-            event_type="exception",
-            summary=f"Exception in node {node}: {exception}",
-            payload=payload,
+            node,
+            "exception",
+            f"{exception.__class__.__name__}: {str(exception)}",
+            payload={"traceback": traceback.format_exc(), "context": context or ""},
             level="ERROR",
             target=target,
         )
@@ -166,6 +218,44 @@ class ResearchRunLogger:
             level="ERROR",
             target=target,
         )
+
+    def log_debug(
+        self,
+        node: str,
+        action: str,
+        details: dict[str, Any] | None = None
+    ) -> None:
+        """Tier-2 logging: Writes heavy payloads to JSONL and sends a lightweight console event to SSE."""
+        timestamp = datetime.now(timezone.utc).isoformat()
+        
+        # 1. Write massive payload to JSONL file
+        file_event = {
+            "timestamp": timestamp,
+            "run_id": self.run_id,
+            "node": node,
+            "event_type": "debug",
+            "action": action,
+            "details": details or {}
+        }
+        _ensure_global_file_worker()
+        _FILE_QUEUE.put_nowait((self.run_id, file_event))
+        
+        # 2. Push lightweight console event to SSE Queue directly
+        console_event = {
+            "timestamp": timestamp,
+            "run_id": self.run_id,
+            "node": node,
+            "event_type": "console",
+            "summary": action,
+            "level": "DEBUG",
+            "payload": {}
+        }
+        queues = _SSE_QUEUES.get(self.run_id, [])
+        for q in queues:
+            try:
+                q.put_nowait(console_event)
+            except Exception as e:
+                logger.error(f"Failed to push console event to SSE queue: {e}")
 
 
 # Registry of active loggers per run_id to avoid redundant object creation
@@ -179,14 +269,27 @@ def get_run_logger(run_id: str) -> ResearchRunLogger:
     return _LOGGERS[run_id]
 
 
-def get_sse_queue(run_id: str) -> asyncio.Queue:
-    """Retrieve or create an SSE Queue for a specific run_id."""
+def get_new_sse_queue(run_id: str) -> asyncio.Queue:
+    """Create and register a new SSE Queue for a specific run_id subscription."""
     if run_id not in _SSE_QUEUES:
-        _SSE_QUEUES[run_id] = asyncio.Queue()
-    return _SSE_QUEUES[run_id]
+        _SSE_QUEUES[run_id] = []
+    q = asyncio.Queue()
+    _SSE_QUEUES[run_id].append(q)
+    return q
+
+
+def remove_sse_queue(run_id: str, q: asyncio.Queue) -> None:
+    """Remove a specific subscriber queue."""
+    if run_id in _SSE_QUEUES:
+        try:
+            _SSE_QUEUES[run_id].remove(q)
+        except ValueError:
+            pass
+        if not _SSE_QUEUES[run_id]:
+            _SSE_QUEUES.pop(run_id)
 
 
 def cleanup_sse_queue(run_id: str) -> None:
-    """Remove the SSE Queue for a run_id to free memory."""
+    """Remove all SSE Queues for a run_id to free memory."""
     _SSE_QUEUES.pop(run_id, None)
 

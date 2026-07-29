@@ -52,7 +52,7 @@ class EvidenceItem(BaseModel):
 
     id: str
     type: Literal["news", "market_data", "prior_artifact", "computed_metric"]
-    source: Literal["tavily", "yfinance", "chroma_retrieval", "internal_computation"]
+    source: Literal["tavily", "yfinance", "chroma_retrieval", "internal_computation", "reconciliation_node"]
     url: str | None = None           # news items only
     title: str | None = None         # news items only
     published_at: datetime | None = None  # article pub date — distinct from fetched_at

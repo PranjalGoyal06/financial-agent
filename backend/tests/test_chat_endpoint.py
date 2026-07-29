@@ -21,7 +21,7 @@ _PORTFOLIO_PATCH = patch(
 def _make_agent_stub(events: list[dict]) -> MagicMock:
     """Build a fake agent whose astream_events yields the given event dicts."""
 
-    async def _astream(inputs, version="v2"):
+    async def _astream(*args, **kwargs):
         for evt in events:
             yield evt
 
@@ -59,7 +59,7 @@ def _tool_end_event(name: str, output: str) -> dict:
 
 def test_health_reports_chat_runtime(client: TestClient) -> None:
     """Verify that the health check endpoint returns 200 and the correct runtime."""
-    response = client.get("/health")
+    response = client.get("/api/health")
 
     assert response.status_code == 200
     body = response.json()
@@ -76,7 +76,7 @@ def test_chat_streams_token_and_final_events(client: TestClient) -> None:
         patch("app.main.get_agent", return_value=stub),
         _PORTFOLIO_PATCH,
     ):
-        response = client.post("/chat", json={"message": "Hello"})
+        response = client.post("/api/chat", json={"message": "Hello"})
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
@@ -106,7 +106,7 @@ def test_chat_streams_tool_call_events(client: TestClient) -> None:
         patch("app.main.get_agent", return_value=stub),
         _PORTFOLIO_PATCH,
     ):
-        response = client.post("/chat", json={"message": "INFY price?"})
+        response = client.post("/api/chat", json={"message": "INFY price?"})
 
     body = response.text
     assert "event: tool_call" in body
@@ -123,7 +123,7 @@ def test_chat_streams_error_when_llm_unconfigured(client: TestClient) -> None:
         ),
         _PORTFOLIO_PATCH,
     ):
-        response = client.post("/chat", json={"message": "Hello"})
+        response = client.post("/api/chat", json={"message": "Hello"})
 
     assert response.status_code == 200
     body = response.text
@@ -133,7 +133,7 @@ def test_chat_streams_error_when_llm_unconfigured(client: TestClient) -> None:
 
 def test_chat_streams_error_on_graph_failure(client: TestClient) -> None:
     """Verify that unhandled graph exceptions are caught and streamed as SSE errors."""
-    async def _bad_astream(inputs, version="v2"):
+    async def _bad_astream(*args, **kwargs):
         raise RuntimeError("Graph exploded")
         yield  # make it an async generator
 
@@ -144,7 +144,7 @@ def test_chat_streams_error_on_graph_failure(client: TestClient) -> None:
         patch("app.main.get_agent", return_value=stub),
         _PORTFOLIO_PATCH,
     ):
-        response = client.post("/chat", json={"message": "Hello"})
+        response = client.post("/api/chat", json={"message": "Hello"})
 
     body = response.text
     assert "event: error" in body
@@ -153,7 +153,7 @@ def test_chat_streams_error_on_graph_failure(client: TestClient) -> None:
 
 def test_chat_rejects_empty_message(client: TestClient) -> None:
     """Verify that an empty chat message is rejected with 422 Unprocessable Entity."""
-    response = client.post("/chat", json={"message": ""})
+    response = client.post("/api/chat", json={"message": ""})
     assert response.status_code == 422
 
 
@@ -166,7 +166,7 @@ async def test_stream_chat_events_stops_on_client_disconnect() -> None:
 
     events_yielded = []
 
-    async def _long_events(inputs, version="v2"):
+    async def _long_events(*args, **kwargs):
         for i in range(100):
             yield {
                 "event": "on_chat_model_stream",

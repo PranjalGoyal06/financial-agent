@@ -10,19 +10,20 @@ from pydantic import BaseModel, Field
 
 from app.llm.provider import get_structured_model
 from app.research.state import ResearchState
+from app.research.utils import run_concurrently
 
 logger = logging.getLogger(__name__)
 
-# A subset of highly liquid Indian stocks to act as our screener universe for the MVP.
-# TODO: Replace with a daily synced Nifty 500 CSV or DB table.
-SCREENER_UNIVERSE = [
-    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "BHARTIARTL.NS",
-    "SBIN.NS", "INFY.NS", "LICI.NS", "ITC.NS", "HINDUNILVR.NS", "LT.NS",
-    "BAJFINANCE.NS", "HCLTECH.NS", "MARUTI.NS", "SUNPHARMA.NS", "TMPV.NS",
-    "TATASTEEL.NS", "KOTAKBANK.NS", "AXISBANK.NS", "ONGC.NS", "NTPC.NS",
-    "M&M.NS", "POWERGRID.NS", "TITAN.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS",
-    "BAJAJFINSV.NS", "ADANIENT.NS", "WIPRO.NS", "NESTLEIND.NS", "TECHM.NS"
-]
+from pathlib import Path
+
+# Load Nifty 500 constituents from local CSV
+_csv_path = Path(__file__).parent.parent.parent.parent.parent / "sample_imports" / "ind_nifty500list.csv"
+try:
+    _df = pd.read_csv(_csv_path)
+    SCREENER_UNIVERSE = [f"{sym}.NS" for sym in _df["Symbol"].dropna().tolist()]
+except Exception as e:
+    logger.error(f"Failed to load Nifty 500 universe: {e}")
+    SCREENER_UNIVERSE = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS"]
 
 
 class SpilloverExtraction(BaseModel):
@@ -96,6 +97,9 @@ def _run_local_screener(exclude_tickers: set[str]) -> list[dict[str, Any]]:
 
 async def _extract_spillover(state: ResearchState, exclude_tickers: set[str]) -> list[dict[str, Any]]:
     """Uses a local LLM to extract mentioned tickers from macro/sector synthesis."""
+    run_id = state.get("run_id") or "test_run"
+    run_logger = get_run_logger(run_id)
+    
     texts = []
     if state.get("macro_synthesis"):
         texts.append(state["macro_synthesis"].analysis_markdown)
@@ -104,9 +108,11 @@ async def _extract_spillover(state: ResearchState, exclude_tickers: set[str]) ->
             texts.append(sec.analysis_markdown)
             
     if not texts:
+        run_logger.log_debug("discover_screen", "No macro/sector synthesis text found for spillover extraction")
         return []
         
     combined_text = "\n\n".join(texts)
+    run_logger.log_debug("discover_screen", f"Extracting spillover tickers from {len(combined_text)} chars of synthesis text")
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a financial analyst. Extract canonical stock tickers (e.g. INFY.NS) mentioned in the text that show strong momentum, tailwinds, or catalysts. Return ONLY the JSON schema."),
@@ -129,18 +135,16 @@ async def _extract_spillover(state: ResearchState, exclude_tickers: set[str]) ->
                     "vector": "spillover",
                     "reason": "Spillover: Mentioned in macro/sector research as having strong tailwinds."
                 })
+        run_logger.log_debug("discover_screen", f"Spillover extraction surfaced {len(candidates)} candidates", {"candidates": candidates})
         return candidates[:5]
     except Exception as e:
         logger.warning(f"Spillover extraction failed: {e}")
+        run_logger.log_debug("discover_screen", f"Spillover extraction failed: {e}")
         return []
 
 
-async def _grade_candidate(candidate: dict, model_callable) -> dict | None:
+async def _grade_candidate(candidate: dict, model_callable, run_logger) -> dict | None:
     """Grades a single candidate based on recent news (mocked for MVP without Tavily here)."""
-    # In a full implementation, we would do 1 Tavily query here to get news context.
-    # To save time and API calls in this implementation, we will mock the Tavily search
-    # and just ask the LLM to grade based on the reason we provided.
-    
     prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a Chief Investment Officer grading research candidates. Score this candidate (1-10) based on how interesting its catalyst or price action is. Score >=7 means it's worth a deep dive."),
         ("user", "Ticker: {ticker}\nReason for discovery: {reason}")
@@ -154,13 +158,16 @@ async def _grade_candidate(candidate: dict, model_callable) -> dict | None:
             "reason": candidate["reason"]
         })
         
-        return {
+        graded = {
             **candidate,
             "score": result.score,
             "reasoning": result.reasoning
         }
+        run_logger.log_debug("discover_screen", f"Graded candidate {candidate['ticker']}: score={result.score}", {"candidate": graded})
+        return graded
     except Exception as e:
         logger.warning(f"Candidate grading failed for {candidate['ticker']}: {e}")
+        run_logger.log_debug("discover_screen", f"Candidate grading failed for {candidate['ticker']}: {e}")
         return None
 
 
@@ -171,6 +178,7 @@ async def discover_screen(state: ResearchState) -> dict:
     run_id = state.get("run_id") or "test_run"
     run_logger = get_run_logger(run_id)
     run_logger.log_event("discover_screen", "node_start", "Discover Screen Node starting")
+    run_logger.log_debug("discover_screen", f"Starting discovery screening against screener universe ({len(SCREENER_UNIVERSE)} stocks)")
     logger.info("Discover Screen Node starting")
     
     watchlist_tickers = set(state.get("tickers", []))
@@ -179,10 +187,14 @@ async def discover_screen(state: ResearchState) -> dict:
     screener_task = asyncio.to_thread(_run_local_screener, watchlist_tickers)
     spillover_task = _extract_spillover(state, watchlist_tickers)
     
-    screener_cands, spillover_cands = await asyncio.gather(screener_task, spillover_task)
+    screener_cands, spillover_cands = await run_concurrently([screener_task, spillover_task], execute_async=state.get("async_execution", True))
     
     run_logger.log_api_traffic("discover_screen", "yfinance_screener", f"Evaluated {len(SCREENER_UNIVERSE)} stocks", len(screener_cands))
     run_logger.log_event("discover_screen", "llm_call", f"Spillover extraction surfaced {len(spillover_cands)} candidates", {"candidates": [c["ticker"] for c in spillover_cands]})
+    run_logger.log_debug("discover_screen", f"Screener candidates: {len(screener_cands)}, Spillover candidates: {len(spillover_cands)}", {
+        "screener_candidates": screener_cands,
+        "spillover_candidates": spillover_cands
+    })
 
     # Combine and dedupe
     seen = set(watchlist_tickers)
@@ -194,16 +206,18 @@ async def discover_screen(state: ResearchState) -> dict:
             all_candidates.append(c)
             
     if not all_candidates:
+        run_logger.log_debug("discover_screen", "No candidates found during discovery vectors")
         run_logger.log_event("discover_screen", "node_complete", "Discover Screen: No candidates found", {"discovered_tickers": []})
         logger.info("Discover Screen: No candidates found.")
         return {"discovered_tickers": []}
         
     logger.info(f"Discover Screen: Found {len(all_candidates)} raw candidates. Grading...")
+    run_logger.log_debug("discover_screen", f"Grading {len(all_candidates)} combined raw candidates", {"all_candidates": all_candidates})
     
     # 2. Grade candidates (using local LLM)
     grade_model = get_structured_model(CandidateGrading, temperature=0.2, provider="ollama_cloud", fallback_provider="ollama")
-    grade_tasks = [_grade_candidate(c, grade_model) for c in all_candidates]
-    graded_results = await asyncio.gather(*grade_tasks)
+    grade_tasks = [_grade_candidate(c, grade_model, run_logger) for c in all_candidates]
+    graded_results = await run_concurrently(grade_tasks, execute_async=state.get("async_execution", True))
     
     # 3. Filter and promote top 5
     valid_results = [r for r in graded_results if r is not None and r["score"] >= 7]
@@ -211,6 +225,11 @@ async def discover_screen(state: ResearchState) -> dict:
     top_candidates = valid_results[:5]
     
     discovered_tickers = [c["ticker"] for c in top_candidates]
+    run_logger.log_debug("discover_screen", f"Filtered top {len(top_candidates)} candidates with score >= 7", {
+        "valid_results": valid_results,
+        "top_candidates": top_candidates,
+        "discovered_tickers": discovered_tickers
+    })
     run_logger.log_event("discover_screen", "node_complete", f"Promoted {len(discovered_tickers)} candidates", {"discovered_tickers": discovered_tickers, "top_candidates": top_candidates})
     logger.info(f"Discover Screen: Promoted {len(discovered_tickers)} candidates: {discovered_tickers}")
     

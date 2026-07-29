@@ -213,7 +213,7 @@ const textareaTarget = `            <form className="composer" onSubmit={sendMes
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Ask PAISA about your portfolio..."}
+                placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Ask anything, @ to mention artifacts, $ to mention stocks, / for commands"}
                 rows={1}
               />`;
 
@@ -230,7 +230,7 @@ const textareaReplacement = `            <form className="composer" onSubmit={se
                   value={input}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Ask PAISA about your portfolio..."}
+                  placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Ask anything, @ to mention artifacts, $ to mention stocks, / for commands"}
                   rows={1}
                 />
                 

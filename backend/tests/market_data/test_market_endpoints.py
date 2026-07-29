@@ -79,7 +79,7 @@ def test_resolve_asset_returns_200(client: TestClient) -> None:
     with patch(
         "app.market_data.router.resolve_asset", return_value=_stub_resolution()
     ):
-        response = client.get("/tools/resolve-asset?query=infosys")
+        response = client.get("/api/tools/resolve-asset?query=infosys")
 
     assert response.status_code == 200
     payload = response.json()
@@ -90,7 +90,7 @@ def test_resolve_asset_returns_200(client: TestClient) -> None:
 
 def test_resolve_asset_missing_query(client: TestClient) -> None:
     """Verify that a missing query parameter triggers validation failure (422)."""
-    response = client.get("/tools/resolve-asset")
+    response = client.get("/api/tools/resolve-asset")
     assert response.status_code == 422
 
 
@@ -98,7 +98,7 @@ def test_resolve_asset_unresolved(client: TestClient) -> None:
     """Verify that a query with no matches returns unresolved candidate list."""
     unresolved = AssetResolution(query="zerodha", resolved=False, candidates=[])
     with patch("app.market_data.router.resolve_asset", return_value=unresolved):
-        response = client.get("/tools/resolve-asset?query=zerodha")
+        response = client.get("/api/tools/resolve-asset?query=zerodha")
 
     assert response.status_code == 200
     assert response.json()["resolved"] is False
@@ -111,7 +111,7 @@ def test_resolve_asset_unresolved(client: TestClient) -> None:
 def test_quote_returns_200(client: TestClient) -> None:
     """Verify fetching quote snapshot for a valid ticker returns 200."""
     with patch.object(YFinanceProvider, "get_quote", return_value=_stub_quote()):
-        response = client.get("/tools/quote?ticker=INFY.NS")
+        response = client.get("/api/tools/quote?ticker=INFY.NS")
 
     assert response.status_code == 200
     payload = response.json()
@@ -123,7 +123,7 @@ def test_quote_returns_200(client: TestClient) -> None:
 
 def test_quote_rejects_non_indian_ticker(client: TestClient) -> None:
     """Verify that non-Indian tickers (e.g. without NS or BO) return validation error (422)."""
-    response = client.get("/tools/quote?ticker=AAPL")
+    response = client.get("/api/tools/quote?ticker=AAPL")
     assert response.status_code == 422
     assert ".NS" in response.json()["detail"] or ".BO" in response.json()["detail"]
 
@@ -135,7 +135,7 @@ def test_quote_returns_404_for_unknown_ticker(client: TestClient) -> None:
         "get_quote",
         side_effect=TickerNotFoundError("FAKE999.NS"),
     ):
-        response = client.get("/tools/quote?ticker=FAKE999.NS")
+        response = client.get("/api/tools/quote?ticker=FAKE999.NS")
 
     assert response.status_code == 404
     assert "FAKE999.NS" in response.json()["detail"]
@@ -152,8 +152,8 @@ def test_quote_is_served_from_cache_on_second_call(client: TestClient) -> None:
         return stub
 
     with patch.object(YFinanceProvider, "get_quote", side_effect=counting_get_quote):
-        r1 = client.get("/tools/quote?ticker=INFY.NS")
-        r2 = client.get("/tools/quote?ticker=INFY.NS")
+        r1 = client.get("/api/tools/quote?ticker=INFY.NS")
+        r2 = client.get("/api/tools/quote?ticker=INFY.NS")
 
     assert r1.status_code == 200
     assert r2.status_code == 200
@@ -166,7 +166,7 @@ def test_quote_ticker_is_uppercased(client: TestClient) -> None:
     with patch.object(
         YFinanceProvider, "get_quote", return_value=_stub_quote()
     ) as mock:
-        client.get("/tools/quote?ticker=infy.ns")
+        client.get("/api/tools/quote?ticker=infy.ns")
     mock.assert_called_once_with("INFY.NS")
 
 
@@ -179,7 +179,7 @@ def test_historical_data_returns_200(client: TestClient) -> None:
         YFinanceProvider, "get_historical", return_value=_stub_hist()
     ):
         response = client.get(
-            "/tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d"
+            "/api/tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d"
         )
 
     assert response.status_code == 200
@@ -195,14 +195,14 @@ def test_historical_data_defaults_applied(client: TestClient) -> None:
     with patch.object(
         YFinanceProvider, "get_historical", return_value=_stub_hist()
     ) as mock:
-        client.get("/tools/historical-data?ticker=INFY.NS")
+        client.get("/api/tools/historical-data?ticker=INFY.NS")
     mock.assert_called_once_with("INFY.NS", "6mo", "1d")
 
 
 def test_historical_data_rejects_invalid_range(client: TestClient) -> None:
     """Verify that an unsupported range value returns 422."""
     response = client.get(
-        "/tools/historical-data?ticker=INFY.NS&range=99y&interval=1d"
+        "/api/tools/historical-data?ticker=INFY.NS&range=99y&interval=1d"
     )
     assert response.status_code == 422
     assert "range" in response.json()["detail"].lower()
@@ -211,7 +211,7 @@ def test_historical_data_rejects_invalid_range(client: TestClient) -> None:
 def test_historical_data_rejects_invalid_interval(client: TestClient) -> None:
     """Verify that an unsupported interval value returns 422."""
     response = client.get(
-        "/tools/historical-data?ticker=INFY.NS&range=6mo&interval=3d"
+        "/api/tools/historical-data?ticker=INFY.NS&range=6mo&interval=3d"
     )
     assert response.status_code == 422
     assert "interval" in response.json()["detail"].lower()
@@ -219,7 +219,7 @@ def test_historical_data_rejects_invalid_interval(client: TestClient) -> None:
 
 def test_historical_data_rejects_non_indian_ticker(client: TestClient) -> None:
     """Verify that non-Indian tickers are rejected with 422 for historical data query."""
-    response = client.get("/tools/historical-data?ticker=AAPL&range=6mo&interval=1d")
+    response = client.get("/api/tools/historical-data?ticker=AAPL&range=6mo&interval=1d")
     assert response.status_code == 422
 
 
@@ -231,7 +231,7 @@ def test_historical_data_404_for_unknown_ticker(client: TestClient) -> None:
         side_effect=TickerNotFoundError("FAKE999.NS"),
     ):
         response = client.get(
-            "/tools/historical-data?ticker=FAKE999.NS&range=6mo&interval=1d"
+            "/api/tools/historical-data?ticker=FAKE999.NS&range=6mo&interval=1d"
         )
 
     assert response.status_code == 404
@@ -252,8 +252,8 @@ def test_historical_data_cached_on_second_call(client: TestClient) -> None:
     with patch.object(
         YFinanceProvider, "get_historical", side_effect=counting_get_historical
     ):
-        r1 = client.get("/tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d")
-        r2 = client.get("/tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d")
+        r1 = client.get("/api/tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d")
+        r2 = client.get("/api/tools/historical-data?ticker=INFY.NS&range=6mo&interval=1d")
 
     assert r1.status_code == 200
     assert r2.status_code == 200

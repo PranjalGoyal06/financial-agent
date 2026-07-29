@@ -179,7 +179,9 @@ async def generate_comparison_node(state: CompareState, config: RunnableConfig) 
 
 
 async def audit_persist_node(state: CompareState, config: RunnableConfig) -> dict[str, Any]:
-    """Persist the event to the audit_events table."""
+    """Persist the event to the audit_events table and update conversation memory."""
+    from langchain_core.messages import AIMessage
+    
     envelope = state.get("envelope")
     if not envelope:
         return {}
@@ -198,4 +200,9 @@ async def audit_persist_node(state: CompareState, config: RunnableConfig) -> dic
         await session.commit()
         break # get_session is a generator
         
-    return {}
+    tickers = state.get("tickers", [])
+    ticker_str = " and ".join(tickers) if tickers else "assets"
+    
+    return {
+        "messages": [AIMessage(content=f"[Rendered Comparison Card for {ticker_str}]")]
+    }

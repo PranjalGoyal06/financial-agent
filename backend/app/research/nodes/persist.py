@@ -84,6 +84,7 @@ async def persist_node(state: ResearchState) -> dict:
                 )
                 saved_counts["portfolio"] += 1
 
+    run_logger.log_debug("persist", f"Persisted research artifacts", {"saved_counts": saved_counts})
     run_logger.log_event("persist", "node_complete", f"Persist Node complete | saved_counts={saved_counts}", {"saved_counts": saved_counts})
     logger.info("Persist Node complete | Successfully saved all artifacts for run_id=%s", run_id)
     return {}

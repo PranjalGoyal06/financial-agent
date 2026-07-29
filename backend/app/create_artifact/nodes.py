@@ -161,4 +161,9 @@ async def render_card_node(state: CreateArtifactState, config: RunnableConfig) -
         payload=card.model_dump()
     )
     
-    return {"envelope": envelope}
+    from langchain_core.messages import AIMessage
+    
+    return {
+        "envelope": envelope,
+        "messages": [AIMessage(content=f"[Created Artifact: {intent.title}]")]
+    }

@@ -150,7 +150,7 @@ def test_agent_graph_compiles_and_validates_structure() -> None:
         mock_llm = MagicMock()
         mock_get_llm.return_value = mock_llm
 
-        agent = get_agent("No portfolio data available", provider="groq", model="llama3")
+        agent = get_agent("No portfolio data available", checkpointer=MagicMock(), provider="groq", model="llama3")
 
         assert hasattr(agent, "stream")
         assert hasattr(agent, "astream_events")

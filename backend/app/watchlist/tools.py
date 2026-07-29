@@ -18,7 +18,7 @@ _LIST_DESC = (
 )
 
 @tool(description=_LIST_DESC)
-async def list_watchlists_tool() -> str:
+async def list_watchlists_tool(dummy: str = "") -> str:
     """List all of the user's configured watchlists."""
     async with AsyncSessionLocal() as session:
         watchlists = await list_watchlists(session, settings.default_user_id)

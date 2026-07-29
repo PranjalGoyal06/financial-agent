@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Protocol
 
+import math
+import pandas as pd
 import yfinance as yf
 
 from app.market_data.schemas import (
@@ -143,8 +145,12 @@ class YFinanceProvider:
             raise TickerNotFoundError(ticker)
 
         df = df.reset_index()
+        df = df.dropna(subset=["Close"])
         bars: list[HistoricalBar] = []
         for _, row in df.iterrows():
+            c = row["Close"]
+            if pd.isna(c) or float(c) <= 0:
+                continue
             dt = row["Datetime"] if "Datetime" in df.columns else row["Date"]
             bar_date = dt.date() if hasattr(dt, "date") else dt
             bars.append(
@@ -154,7 +160,7 @@ class YFinanceProvider:
                     high=float(row["High"]),
                     low=float(row["Low"]),
                     close=float(row["Close"]),
-                    volume=int(row["Volume"]),
+                    volume=int(row["Volume"]) if not pd.isna(row["Volume"]) else 0,
                 )
             )
 

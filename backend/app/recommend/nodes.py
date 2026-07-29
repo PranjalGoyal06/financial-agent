@@ -165,4 +165,9 @@ async def audit_persist_node(state: RecommendState, config: RunnableConfig) -> d
     except Exception as e:
         print(f"Failed to log audit event: {e}")
         
-    return {}
+    ticker = state.get("ticker", "asset")
+    from langchain_core.messages import AIMessage
+    
+    return {
+        "messages": [AIMessage(content=f"[Rendered Recommendation Card for {ticker}]")]
+    }

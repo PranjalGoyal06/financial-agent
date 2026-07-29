@@ -167,20 +167,23 @@ The endpoint accepts the raw FastAPI `Request` object and monitors `await raw_re
 
 ---
 
-## 4. LangGraph Chat Agent ([graph.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/graph.py))
+## 4. LangGraph Unified Chat Agent ([graph.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/graph.py))
 
-The chat agent is built with `create_react_agent` from LangGraph. It uses a
-custom `SequentialToolNode` to guarantee tools execute in order, solving race
-conditions during streaming. 
+The primary chat interaction is orchestrated by a unified `MasterGraph` (StateGraph) that routes inputs dynamically based on the presence of a `/` slash command.
+
+### Architecture & Routing
+The `MasterState` tracks conversation messages and an optional `slash_command` string (e.g., `compare`, `create_artifact`, `recommend`). A router node intercepts the input and conditionally directs the flow:
+- If a slash command is detected, execution is routed to a specialized subgraph (e.g., `compare_graph`, `create_artifact_graph`, `recommend_graph`).
+- If it's a standard query, execution routes to the default `paisa_agent` (a ReAct agent built with `create_react_agent`).
+- Specialized subgraphs process their custom logic, append a final `AIMessage` with tool output to the state, and transition back to `__end__`.
+
+This unified structure ensures all interactions — whether standard chat or specialized slash commands — are persisted sequentially to the conversation history by a single `AsyncPostgresSaver` checkpointer.
 
 ### Context Management
-Conversation history is maintained automatically using LangGraph's `AsyncPostgresSaver` checkpointer. State size is managed dynamically using `trim_messages` inside a `state_modifier` hook, which keeps the context window constrained to a maximum token count (e.g., 8000 tokens) before it reaches the LLM, while fully preserving the immutable conversation log in PostgreSQL.
+Conversation history is maintained automatically using LangGraph's checkpointer. State size is managed dynamically using `trim_messages` inside a `state_modifier` hook for the default `paisa_agent`, which keeps the context window constrained to a maximum token count (e.g., 8000 tokens) before it reaches the LLM, while fully preserving the immutable conversation log in PostgreSQL.
 
 ### System Prompt
-
-Injected at runtime with `{portfolio_context}` — the user's current holdings
-formatted as a markdown table. The agent persona is **PAISA** (Portfolio Advisor
-and Investment Strategist Agent).
+For the `paisa_agent`, the system prompt is injected at runtime with `{portfolio_context}` — the user's current holdings formatted as a markdown table. The agent persona is **PAISA** (Portfolio Advisor and Investment Strategist Agent).
 
 ### Agent Tools (14 tools)
 
@@ -226,6 +229,7 @@ research reports with evidence-backed citations.
 - **Evidence packs:** `macro_evidence`, `sector_evidence` (dict), `ticker_evidence` (dict), `portfolio_evidence`
 - **Synthesis outputs:** `macro_synthesis`, `sector_synthesis` (dict), `ticker_synthesis` (dict), `portfolio_synthesis`
 - **Metadata:** `run_id`, `user_id`, `errors`
+- **Orchestration Configuration:** `async_execution` (bool)
 
 Concurrent state updates use `Annotated[dict, merge_dict]` and
 `Annotated[list, append_list]` reducers.
@@ -241,7 +245,7 @@ START → plan_macro_sector → collect_macro_sector → discover_screen
 ```
 
 Fourteen nodes, executed sequentially. Intra-node parallelism (fan-out across
-tickers and sectors) is handled with `asyncio.gather` inside each node.
+tickers and sectors) is managed dynamically by checking the `async_execution` state flag and falling back to sequential execution (via `run_concurrently` in `utils.py`) if parallel processing is toggled off (e.g. for local model stability).
 
 ### 5.3 Node Details ([nodes/](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/nodes/))
 
@@ -260,15 +264,16 @@ tickers and sectors) is handled with `asyncio.gather` inside each node.
 | **reconcile_with_prior** | `reconciliation.py` | Queries Chroma for most recent prior ticker artifact. LLM generates a short drift report (e.g., flipped recommendations) stored in state. |
 | **portfolio_synthesis**  | `synthesis.py`      | CIO-persona LLM → `PortfolioSynthesis`. Computes rolling correlation across tickers on the fly. Ingests drift reports. |
 | **persist**              | `persist.py`        | Writes all artifacts to PostgreSQL and indexes markdown in ChromaDB. |
-| **logger**               | `logger.py`         | System-level (Tier-1) JSONL logger writing detailed run events to `logs/research/{run_id}.jsonl`. |
+| **logger**               | `logger.py`         | System-level logging: Tier-1 orchestration events securely committed to PostgreSQL via a global worker queue. Tier-2 granular payload logging (JSONL) buffered and written to local disk. |
 
 ### 5.4 REST API Endpoints ([router.py](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/router.py))
 
 - `POST /api/research/trigger` — Spawns async background research task.
 - `GET /api/research/status/{run_id}` — Returns status (`running`, `completed`, `failed`).
-- `GET /research/logs/{run_id}` — Returns Tier-1 system debug log events (supports `node` and `event_type` filtering).
+- `GET /api/research/stream/{run_id}` — Live SSE stream emitting Tier-1 orchestration events and Tier-2 string hints (console events).
+- `GET /api/research/logs/{run_id}` — Returns Tier-2 granular JSONL logs (LLM prompts, raw tool calls) straight from disk for terminal debugging.
 - `GET /api/research/recommendations` — Latest ticker recommendations.
-- `GET /research/artifact/{run_id}/{type}` — Fetch report & evidence pack.
+- `GET /api/research/artifact/{run_id}/{type}` — Fetch report & evidence pack.
 
 | File           | Persona                    | Key Requirements                                      |
 | -------------- | -------------------------- | ----------------------------------------------------- |
@@ -426,6 +431,8 @@ and SVG sparkline charts.
 | **RunHistorySidebar**       | [RunHistorySidebar.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/components/RunHistorySidebar.tsx) | Past research run list |
 | **NodeDetailsPanel**        | [NodeDetailsPanel.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/components/NodeDetailsPanel.tsx) | Execution logs for a selected graph node |
 | **EvidenceDrawer**          | [EvidenceDrawer.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/components/EvidenceDrawer.tsx) | Included/discarded evidence viewer |
+| **ScheduleModal**           | [ScheduleModal.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/ScheduleModal.tsx) | Modal UI for setting recurring research schedules with human-readable options and presets |
+| **ActiveSchedulesModal**    | [ActiveSchedulesModal.tsx](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/ActiveSchedulesModal.tsx) | Modal UI listing all active background schedules with next run time and deletion controls |
 
 ### 7.5 Frontend ↔ Backend Communication
 

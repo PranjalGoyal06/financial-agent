@@ -20,6 +20,7 @@ from app.research.store import search_prior_artifacts
 from app.search.client import search as search_tavily
 from app.ta.lib import compute_rsi, compute_sma
 from app.research.logger import get_run_logger
+from app.research.utils import run_concurrently
 
 logger = logging.getLogger(__name__)
 _provider = YFinanceProvider()
@@ -57,13 +58,20 @@ async def _search_with_delay(query: str, max_results: int) -> list[EvidenceItem]
 
 async def _collect_macro(run_id: str) -> EvidencePack:
     """Collect macro-level research evidence."""
+    run_logger = get_run_logger(run_id)
     fetched_at = datetime.now(timezone.utc)
     queries = await _generate_queries("India equity market macroeconomic outlook, interest rates, and systemic risks this week", max_queries=3)
+    run_logger.log_debug("collect_macro_sector", f"Generated {len(queries)} macro search queries", {"queries": queries})
     
     items = []
     for q in queries:
         res = await _search_with_delay(q, max_results=3)
         items.extend(res)
+    
+    run_logger.log_debug("collect_macro_sector", f"Gathered {len(items)} macro evidence items", {
+        "queries": queries,
+        "items": [{"id": it.id, "title": it.title, "url": it.url, "summary": it.summary} for it in items[:5]]
+    })
     
     return EvidencePack(
         pack_id=f"{run_id}_macro",
@@ -75,13 +83,21 @@ async def _collect_macro(run_id: str) -> EvidencePack:
 
 async def _collect_sector(run_id: str, sector: str) -> tuple[str, EvidencePack]:
     """Collect industry/sector level research evidence."""
+    run_logger = get_run_logger(run_id)
     fetched_at = datetime.now(timezone.utc)
     queries = await _generate_queries(f"Current trends, headwinds, and tailwinds for the {sector} sector in the Indian equity market", max_queries=3)
+    run_logger.log_debug("collect_macro_sector", f"Generated {len(queries)} queries for sector '{sector}'", {"sector": sector, "queries": queries})
     
     items = []
     for q in queries:
         res = await _search_with_delay(q, max_results=3)
         items.extend(res)
+    
+    run_logger.log_debug("collect_macro_sector", f"Gathered {len(items)} evidence items for sector '{sector}'", {
+        "sector": sector,
+        "queries": queries,
+        "items_count": len(items)
+    })
     
     pack = EvidencePack(
         pack_id=f"{run_id}_sector_{sector.lower().replace(' ', '_')}",
@@ -98,6 +114,7 @@ async def collect_macro_sector(state: ResearchState) -> dict:
     run_id = state.get("run_id")
     run_logger = get_run_logger(run_id)
     run_logger.log_event("collect_macro_sector", "node_start", f"Collect Macro/Sector Node starting | run_id={run_id}")
+    run_logger.log_debug("collect_macro_sector", f"Starting macro and sector evidence collection for {len(sectors)} sectors", {"sectors": sectors})
 
     logger.info("Collect Macro/Sector Node starting | run_id=%s sectors=%s", run_id, sectors)
     errors = []
@@ -105,7 +122,7 @@ async def collect_macro_sector(state: ResearchState) -> dict:
     macro_task = _collect_macro(run_id)
     sector_tasks = [_collect_sector(run_id, sec) for sec in sectors]
 
-    gathered = await asyncio.gather(macro_task, *sector_tasks, return_exceptions=True)
+    gathered = await run_concurrently([macro_task, *sector_tasks], execute_async=state.get("async_execution", True), return_exceptions=True)
 
     idx = 0
     macro_pack = gathered[idx]
@@ -129,6 +146,11 @@ async def collect_macro_sector(state: ResearchState) -> dict:
     sector_evidence = {sector: pack for sector, pack in sector_results}
 
     logger.info("Collect Macro/Sector complete | %d sectors processed", len(sector_evidence))
+    run_logger.log_debug("collect_macro_sector", f"Collect Macro/Sector processing complete", {
+        "macro_items_count": len(macro_pack.items),
+        "sectors_processed": list(sector_evidence.keys()),
+        "errors": errors
+    })
     run_logger.log_event("collect_macro_sector", "node_complete", f"Collect Macro/Sector complete. Processed {len(sector_evidence)} sectors.")
 
     update = {
@@ -153,7 +175,7 @@ def _fetch_ticker_yfinance(ticker: str) -> tuple[dict, list, dict | None]:
     return quote.model_dump(), historical.bars, (fundamentals.model_dump() if fundamentals else None)
 
 
-async def _collect_ticker_r1(run_id: str, ticker: str) -> tuple[str, EvidencePack, list]:
+async def _collect_ticker_r1(run_id: str, ticker: str, execute_async: bool = True) -> tuple[str, EvidencePack, list]:
     fetched_at = datetime.now(timezone.utc)
     items = []
     bars = []
@@ -165,7 +187,7 @@ async def _collect_ticker_r1(run_id: str, ticker: str) -> tuple[str, EvidencePac
         chroma_task = search_prior_artifacts(f"{ticker} investment research analysis", limit=3, target=ticker)
         yf_task = asyncio.to_thread(_fetch_ticker_yfinance, ticker)
 
-        results = await asyncio.gather(*tavily_tasks, chroma_task, yf_task)
+        results = await run_concurrently([*tavily_tasks, chroma_task, yf_task], execute_async=execute_async)
         
         # Unpack results
         for t_res in results[:-2]:
@@ -236,8 +258,9 @@ async def collect_tickers_round1(state: ResearchState) -> dict:
     logger.info("Collect Tickers Round 1 Node starting | run_id=%s tickers=%s", run_id, tickers)
     errors = []
 
-    ticker_tasks = [_collect_ticker_r1(run_id, tick) for tick in tickers]
-    gathered = await asyncio.gather(*ticker_tasks, return_exceptions=True)
+    async_exec = state.get("async_execution", True)
+    ticker_tasks = [_collect_ticker_r1(run_id, tick, async_exec) for tick in tickers]
+    gathered = await run_concurrently(ticker_tasks, execute_async=async_exec, return_exceptions=True)
 
     ticker_evidence: dict[str, EvidencePack] = {}
     
@@ -270,7 +293,7 @@ async def collect_tickers_round2(state: ResearchState) -> dict:
     
     if not follow_up_queries:
         logger.info("Collect Tickers Round 2 Node skipping (no queries)")
-        run_logger.log_event("collect_tickers_round2", "node_complete", "Collect Tickers Round 2 skipping (no follow-up queries)")
+        run_logger.log_event("collect_tickers_round2", "node_skipped", "Collect Tickers Round 2 skipped (no follow-up queries)")
         return {}
     
     ticker_evidence = dict(state.get("ticker_evidence", {}))

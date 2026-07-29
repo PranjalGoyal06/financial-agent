@@ -24,13 +24,13 @@ export const initialNodes: AppNode[] = [
     style: { width: 300, height: 480, backgroundColor: 'rgba(255, 255, 255, 0.05)', border: '1px dashed var(--line-strong)', borderRadius: '12px' },
     type: 'group' // will be rendered via CustomGroupNode
   },
-  { id: 'ts_draft', position: { x: 25, y: 40 }, data: { label: 'draft', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_critique', position: { x: 25, y: 120 }, data: { label: 'critique', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_revise', position: { x: 25, y: 200 }, data: { label: 'revise', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_cio', position: { x: 25, y: 280 }, data: { label: 'CIO judgment', status: 'pending', llmTier: 'tier-frontier' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
-  { id: 'ts_validate', position: { x: 25, y: 360 }, data: { label: 'validate_citations', status: 'pending', llmTier: 'tier-local' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
+  { id: 'ts_draft', position: { x: 25, y: 40 }, data: { label: 'draft', status: 'pending' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
+  { id: 'ts_critique', position: { x: 25, y: 120 }, data: { label: 'critique', status: 'pending' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
+  { id: 'ts_revise', position: { x: 25, y: 200 }, data: { label: 'revise', status: 'pending' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
+  { id: 'ts_cio', position: { x: 25, y: 280 }, data: { label: 'CIO judgment', status: 'pending' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
+  { id: 'ts_validate', position: { x: 25, y: 360 }, data: { label: 'validate_citations', status: 'pending' }, type: 'customNode', parentId: 'ticker_synthesis', extent: 'parent' },
 
-  { id: 'reconcile', position: { x: 750, y: 50 }, data: { label: 'reconcile_with_prior', status: 'pending', informational: true, targetPosition: 'left', sourcePosition: 'bottom' }, type: 'customNode' },
+  { id: 'reconcile_with_prior', position: { x: 750, y: 50 }, data: { label: 'reconcile_with_prior', status: 'pending', informational: true, targetPosition: 'left', sourcePosition: 'bottom' }, type: 'customNode' },
   { id: 'portfolio_synthesis', position: { x: 750, y: 150 }, data: { label: 'portfolio_synthesis', status: 'pending', targetPosition: 'top', sourcePosition: 'bottom' }, type: 'customNode' },
   { id: 'persist', position: { x: 750, y: 250 }, data: { label: 'persist', status: 'pending', targetPosition: 'top', sourcePosition: 'bottom' }, type: 'customNode' },
 ];
@@ -55,11 +55,11 @@ export const initialEdges: Edge[] = [
   { 
     id: 'e_ts_out', 
     source: 'ticker_synthesis', 
-    target: 'reconcile', 
+    target: 'reconcile_with_prior', 
     animated: true,
     type: 'smoothstep'
   },
-  { id: 'e10', source: 'reconcile', target: 'portfolio_synthesis', animated: false, type: 'smoothstep' },
+  { id: 'e10', source: 'reconcile_with_prior', target: 'portfolio_synthesis', animated: false, type: 'smoothstep' },
   { id: 'e11', source: 'portfolio_synthesis', target: 'persist', animated: false, type: 'smoothstep' },
 ];
 
@@ -67,9 +67,10 @@ export function useResearchRun(runId: string | null) {
   const [nodes, setNodes] = useState<AppNode[]>(initialNodes);
   const [events, setEvents] = useState<ResearchRunEvent[]>([]);
   const [runStatus, setRunStatus] = useState<string>('pending');
+  const [tickerProgress, setTickerProgress] = useState<{ completed: number; total: number }>({ completed: 0, total: 0 });
   
   // Track node status map locally to quickly update `nodes`
-  const [nodeStatusMap, setNodeStatusMap] = useState<Record<string, 'pending' | 'running' | 'completed' | 'failed'>>({});
+  const [nodeStatusMap, setNodeStatusMap] = useState<Record<string, NodeStatus>>({});
 
   useEffect(() => {
     if (!runId) return;
@@ -79,6 +80,7 @@ export function useResearchRun(runId: string | null) {
     setEvents([]);
     setRunStatus('running');
     setNodeStatusMap({});
+    setTickerProgress({ completed: 0, total: 0 });
 
     const eventSource = new EventSource(`/api/research/stream/${runId}`);
     
@@ -86,11 +88,31 @@ export function useResearchRun(runId: string | null) {
       const data: ResearchRunEvent = JSON.parse(e.data);
       setEvents(prev => [...prev, data]);
       
+      // Track total_tickers from ticker_synthesis events if present
+      if (data.details && typeof data.details.total_tickers === 'number') {
+        const total = data.details.total_tickers;
+        setTickerProgress(prev => ({ ...prev, total }));
+      }
+      
+      if (data.node === 'ticker_synthesis' && data.event_type === 'progress') {
+        setTickerProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+      }
+
       if (data.event_type === 'run_completed') {
         setRunStatus('completed');
         eventSource.close();
       } else if (data.event_type === 'run_failed') {
         setRunStatus('failed');
+        // Any node still running should be marked as failed
+        setNodeStatusMap(prev => {
+          const next = { ...prev };
+          for (const key in next) {
+            if (next[key] === 'running') {
+              next[key] = 'failed';
+            }
+          }
+          return next;
+        });
         eventSource.close();
       } else if (data.event_type === 'run_cancelled') {
         setRunStatus('cancelled');
@@ -99,7 +121,11 @@ export function useResearchRun(runId: string | null) {
         setNodeStatusMap(prev => ({ ...prev, [data.node]: 'running' }));
       } else if (data.event_type === 'node_complete') {
         setNodeStatusMap(prev => ({ ...prev, [data.node]: 'completed' }));
-      } else if (data.event_type === 'node_error') {
+      } else if (data.event_type === 'node_skipped') {
+        setNodeStatusMap(prev => ({ ...prev, [data.node]: 'skipped' }));
+      } else if (data.event_type === 'node_warning' || data.event_type === 'node_fallback') {
+        setNodeStatusMap(prev => ({ ...prev, [data.node]: 'warning' }));
+      } else if (data.event_type === 'node_error' || data.event_type === 'exception') {
         setNodeStatusMap(prev => ({ ...prev, [data.node]: 'failed' }));
       }
     });
@@ -119,33 +145,49 @@ export function useResearchRun(runId: string | null) {
   useEffect(() => {
     setNodes(prev => prev.map(node => {
       const newStatus = nodeStatusMap[node.id];
+      let updatedNode = node;
+
       if (newStatus && newStatus !== node.data.status) {
-        return {
-          ...node,
+        updatedNode = {
+          ...updatedNode,
           data: {
-            ...node.data,
+            ...updatedNode.data,
             status: newStatus
           }
         };
       }
-      // Expand nested status to parent group
+
+      // Expand nested status to parent group & inject progress badge
       if (node.id === 'ticker_synthesis') {
         const anyRunning = Object.keys(nodeStatusMap).some(k => k.startsWith('ts_') && nodeStatusMap[k] === 'running');
         const anyFailed = Object.keys(nodeStatusMap).some(k => k.startsWith('ts_') && nodeStatusMap[k] === 'failed');
+        const anyWarning = Object.keys(nodeStatusMap).some(k => k.startsWith('ts_') && nodeStatusMap[k] === 'warning');
         const allCompleted = ['ts_draft', 'ts_critique', 'ts_revise', 'ts_cio', 'ts_validate'].every(k => nodeStatusMap[k] === 'completed');
         
         let s: NodeStatus = 'pending';
         if (anyFailed) s = 'failed';
         else if (anyRunning) s = 'running';
         else if (allCompleted) s = 'completed';
+        else if (anyWarning) s = 'warning';
         
-        if (s !== node.data.status) {
-           return { ...node, data: { ...node.data, status: s } };
+        const labelStr = tickerProgress.total > 0
+          ? `ticker_synthesis (${tickerProgress.completed}/${tickerProgress.total} Tickers Complete)`
+          : 'ticker_synthesis';
+
+        if (s !== updatedNode.data.status || labelStr !== updatedNode.data.label) {
+           return {
+             ...updatedNode,
+             data: {
+               ...updatedNode.data,
+               status: s,
+               label: labelStr
+             }
+           };
         }
       }
-      return node;
+      return updatedNode;
     }));
-  }, [nodeStatusMap]);
+  }, [nodeStatusMap, tickerProgress]);
 
   return { nodes, edges: initialEdges, events, runStatus };
 }

@@ -64,13 +64,14 @@ type BriefingResponse = {
 interface BriefingZoneProps {
   onPreFillChat: (query: string) => void;
   onNavigateToAsset: (ticker: string) => void;
+  onNavigateToRun?: (runId: string) => void;
 }
 
 function formatAmount(val: number): string {
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(val);
 }
 
-export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneProps) {
+export function BriefingZone({ onPreFillChat, onNavigateToAsset, onNavigateToRun }: BriefingZoneProps) {
   const navigate = useNavigate();
   const [data, setData] = useState<BriefingResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,8 +102,17 @@ export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneP
 
   const { greeting, climate, action_desk, no_action, top_news } = data;
 
-  const handleCardClick = (ticker: string) => {
-    onNavigateToAsset(ticker);
+  const handleCardClick = (card: ActionCard) => {
+    onPreFillChat(`Explain the recommendation for $${card.ticker}`);
+  };
+
+  const handleRunClick = (e: React.MouseEvent, runId: string) => {
+    e.stopPropagation();
+    if (onNavigateToRun) {
+      onNavigateToRun(runId);
+    } else {
+      navigate(`/research/${runId}`);
+    }
   };
 
   return (
@@ -187,7 +197,8 @@ export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneP
               <div
                 key={i}
                 className="action-card"
-                onClick={() => handleCardClick(card.ticker)}
+                onClick={() => handleCardClick(card)}
+                style={{ cursor: 'pointer' }}
               >
                 <div className="action-card-header" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span className="action-ticker">{card.ticker}</span>
@@ -212,6 +223,31 @@ export function BriefingZone({ onPreFillChat, onNavigateToAsset }: BriefingZoneP
                 <div className="action-headline">{card.headline}</div>
                 <div className="action-bear-case">
                   <span className="bear-label">Bear Case:</span> {card.bear_case_snippet}
+                </div>
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button 
+                    onClick={(e) => handleRunClick(e, card.run_id)}
+                    style={{ 
+                      background: 'var(--surface)', 
+                      border: '1px solid var(--line)', 
+                      color: 'var(--text-secondary)',
+                      padding: '4px 12px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = 'var(--text)';
+                      e.currentTarget.style.borderColor = 'var(--text-secondary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.borderColor = 'var(--line)';
+                    }}
+                  >
+                    View Research Report
+                  </button>
                 </div>
               </div>
             ))}

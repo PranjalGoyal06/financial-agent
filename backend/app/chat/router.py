@@ -86,6 +86,7 @@ async def get_session_detail(session_id: str, session: AsyncSession = Depends(ge
                 role=m.role,
                 content=m.content,
                 thinking=m.thinking,
+                blocks_json=m.blocks_json,
                 tool_calls=m.tool_calls,
                 tool_call_id=m.tool_call_id,
                 tool_name=m.tool_name,

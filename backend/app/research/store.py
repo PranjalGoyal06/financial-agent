@@ -153,9 +153,24 @@ async def save_research_artifact(
     confidence_score: int | None = None,
 ) -> Artifact:
     """Wrapper to save research-specific artifacts using the generalized schema."""
-    title = f"{artifact_type.capitalize()} Research"
-    if target:
-        title += f" for {target}"
+    from datetime import datetime, timezone
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    short_hash = run_id.replace("run_", "")[:6]
+
+    if artifact_type == "macro":
+        base_name = "Macro Synthesis"
+    elif artifact_type == "portfolio":
+        base_name = "Portfolio Synthesis"
+    elif artifact_type == "sector" and target:
+        base_name = f"Sector Analysis: {target}"
+    elif artifact_type == "ticker" and target:
+        base_name = f"{target} Research"
+    else:
+        base_name = f"{artifact_type.capitalize()} Research"
+        if target:
+            base_name += f" for {target}"
+
+    title = f"{base_name} ({date_str} #{short_hash})"
 
     tags = [f"type:{artifact_type}"]
     if target:

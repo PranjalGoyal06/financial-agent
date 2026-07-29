@@ -1,4 +1,76 @@
+### [2026-07-29] — Fixed auto-switching behavior for Node events and logs
+- Refactored auto-switching in `ResearchLayout.tsx` to detect node status transitions (e.g. pending to running) instead of continuous enforcement.
+- Ensures the OrchestrationGraph only auto-focuses when a node changes state, leaving the user with full manual control over node selection between status updates.
+- Why: Fixes an issue where users were unable to manually check the status and logs of completed or skipped nodes while a run was still active.
+
+
+### [2026-07-29] — Fixed EvidenceItem Validation, Discovered Tickers State & UI Node Styling
+- Expanded `EvidenceItem.source` literal options to include `"reconciliation_node"` in [`backend/app/evidence/schemas.py`](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/evidence/schemas.py#L55).
+- Added `discovered_tickers` to `ResearchState` in [`backend/app/research/state.py`](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/state.py#L40) and `initial_state` in [`backend/app/research/router.py`](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/router.py#L60).
+- Normalized yfinance ticker downloads with `normalize_ticker_symbol` in `portfolio_synthesis_node` in [`backend/app/research/nodes/synthesis.py`](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/nodes/synthesis.py#L380).
+- Scoped transparent background for `.graph-node--informational` in [`frontend/src/features/research/research.css`](file:///Users/pranjal/Projects/financial-agent/dev/frontend/src/features/research/research.css#L243) to pending status only.
+- *Why*: Resolves `ValidationError` crash during portfolio synthesis, enables candidate pass-through from `discover_screen` to `plan_tickers`, fixes missing symbol warnings on Indian equities, and ensures completed reconciliation nodes render proper status backgrounds in the UI.
+
+### [2026-07-29] — Fixed NameError for reset_gemini_circuit_breaker in planner.py
+- Added missing import `from app.llm.provider import reset_gemini_circuit_breaker` to [`backend/app/research/nodes/planner.py`](file:///Users/pranjal/Projects/financial-agent/dev/backend/app/research/nodes/planner.py#L18).
+- *Why*: Fixed `NameError: name 'reset_gemini_circuit_breaker' is not defined` crash when `plan_macro_sector` node executes at the start of a research run.
+
+### [2026-07-29] — Dynamic Nifty 500 Screener Universe
+- Replaced the hardcoded 31-stock `SCREENER_UNIVERSE` in `discovery.py` with a dynamically loaded Nifty 500 list from `sample_imports/ind_nifty500list.csv`.
+- Why: Vastly expands the discoverable universe for the research node without requiring API requests to NSE, providing immediate utility and significantly more candidate surfaces.
+- Invalidates the assumption that discovery screening only runs on a highly constrained static MVP list.
+
+### [2026-07-29] — Nemotron Cloud Model Tag, Gemini Rate-Limiting & Research DAG Fixes
+- Updated `ollama_cloud_model` to `"nemotron-3-super:cloud"` and default Gemini model to `"gemini-3.5-flash-lite"`, aligning chat UI dropdown and research node model selection.
+- Implemented `ThrottledChatGoogleGenerativeAI` with 1-RPM pacing and 1-strike per-run circuit breaker to handle Gemini quota limits cleanly without spamming requests.
+- Fixed `AttributeError` in `macro_synthesis_node`, changed `portfolio_synthesis_node` fallback to log `node_warning`, and updated frontend ReactFlow node ID to `'reconcile_with_prior'`.
+- *Why*: Resolves 404 model errors, 429 quota log spam, and frontend DAG status stuck in pending.
+
+### [2026-07-29] — Tracked Scheduled 7 AM Research Run End-to-End
+- Identified and monitored scheduled deep research run `run_5d057d4cded1` (07:00 IST – 07:37 IST).
+- Documented node progression across all 13 execution stages, model fallbacks, rate-limit warnings, and generated artifacts.
+- Why: Validated end-to-end autonomous research run execution and documented system findings without modifying product source code.
+
+### [2026-07-29] — Unified Slash Command Graphs into MasterGraph
+- Implemented `MasterGraph` containing all specialized subgraphs (`paisa_agent`, `compare_graph`, `create_artifact_graph`, `recommend_graph`) routed by a single top-level state containing a `slash_command` string.
+- Removed custom manual routing and condition logic from `backend/app/main.py`, drastically simplifying the `/chat` endpoint stream handler.
+- Fixed mock test leaks and route prefixing bugs that were throwing 404s and 500s across `test_chat_endpoint.py`, `test_market_endpoints.py`, and `test_portfolio_endpoints.py`.
+- *Why:* Ensures slash command executions are properly processed through the `langgraph` checkpointer, persisting all outputs (`AIMessage`) seamlessly to the chat session database history.
+
 # Changes
+
+### 2026-07-28 — Chat layout fixes and prompt chips removal
+- Removed prompt chips from `Home.tsx` to declutter the interface.
+- Fixed a structural scrolling issue in `styles.css` by locking `.app-shell` to `100vh` and explicitly enabling `overflow-y: auto` on sidebars, preventing the main container from scrolling out of bounds.
+- Increased the docked chat container's bottom padding (`96px`) across `Home.tsx`, `ChatHome.tsx`, and `styles.css` to lift the chat box significantly from the bottom edge.
+- Why: Ensures the chat composer is comfortably within bounds on all viewports without being clipped or crowded by other elements.
+
+### [2026-07-29] — Fixed Sparkline Visual Drop Artifact Bug & Missing Math Import
+- Filtered out `NaN` and non-positive `Close` values in `YFinanceProvider.get_historical` (`backend/app/market_data/provider.py`) using `df.dropna(subset=["Close"])`.
+- Added missing `import math` to top of `backend/app/main.py` and added defensive `NaN` and `> 0` checks in `_fetch_sparkline_real`.
+- Added array sanitization in `Sparkline` component (`frontend/src/App.tsx`) to filter non-numeric, `NaN`, non-finite, or `0` values before calculating SVG points.
+- Why: Resolves `NameError: name 'math' is not defined` during sparkline fetching and fixes `yfinance` returning a trailing `NaN` bar for active/in-progress trading sessions.
+
+### [2026-07-29] — Added Auto-Migration for `watchlist_id` Column in `research_schedules`
+- Added schema migration statement in `init_db()` (`app/db.py`) to execute `ALTER TABLE research_schedules ADD COLUMN IF NOT EXISTS watchlist_id VARCHAR;`.
+- Executed migration script against existing database.
+- Why: Fixes `sqlalchemy.exc.ProgrammingError: column "watchlist_id" of relation "research_schedules" does not exist` when saving schedules for existing tables.
+
+### [2026-07-28] — Added Active Schedules Manager & Dynamic APScheduler Registration
+- Built `ActiveSchedulesModal.tsx` component to list active research schedules, next execution times, target watchlists, and delete controls.
+- Added `watchlist_id` binding to `ResearchScheduleModel` in `models.py` and updated `/api/research/schedule` endpoints in `router.py`.
+- Updated `scheduler.py` with `register_schedule_job` and `unregister_schedule_job` for dynamic runtime APScheduler synchronization.
+- Added `Schedules (N)` button in `ResearchLayout.tsx` header for instant schedule inspection.
+- Why: Provides full UI transparency into saved schedules and guarantees instant registration with APScheduler without server restarts.
+
+### 2026-07-28 — Backend Bugfixes (Gemini Thinking, utc_now Type Error, & json_mode for Structured Outputs)
+- Conditionally added `thinking_budget=0` and `include_thoughts=False` to `ChatGoogleGenerativeAI` instantiation in `backend/app/llm/provider.py` (only for models supporting reasoning, i.e. containing "pro" or "thinking" in their name).
+- Fixed `utc_now` helper in `backend/app/main.py` to return a `datetime` object instead of an ISO string, using `.isoformat()` only for SSE JSON serialization.
+- Defaulted structured models to use `json_mode` instead of `function_calling` for the Gemini provider in `backend/app/llm/provider.py`.
+- Why: Fixes:
+  1. A `thought_signature` missing 400 validation error on Gemini 3.x reasoning models during tool use, while preventing "400 Request contains an invalid argument" errors on standard/lite models (which do not support the legacy `thinking_budget` configuration).
+  2. A SQLAlchemy `DataError` on `chat_session.updated_at` due to assigning a string instead of a `datetime` object.
+  3. Structured output parsing failures (e.g. `ComparisonCard` validation errors) on Gemini 3.5 Flash by leveraging native API-level JSON Schema constraints.
 
 ### [2026-07-27] — Fixed TATAMOTORS.NS Error in discovery.py
 - Updated the hardcoded `TATAMOTORS.NS` ticker in `SCREENER_UNIVERSE` inside `discovery.py` to `TMPV.NS`.
@@ -166,3 +238,11 @@
 - Extracted chat logic into `ChatPage.tsx` and simplified `Home.tsx` to serve as a routing shell entry point.
 - Created `ChatSessionModel` and `ChatMessageModel` to linearly persist chat history, including tool inputs and outputs as JSON.
 - Created `/api/chat/sessions` endpoints and modified the `stream_chat_events` logic to stream and persist data simultaneously.
+### 2026-07-29 — Make action cards horizontally scrollable
+- Updated `.action-cards` and `.action-card` styles in `frontend/src/styles.css` to use flexbox for a single horizontal scrollable row instead of a wrapping grid.
+- Improves UI compactness and ensures action cards don't consume excessive vertical space on smaller screens.
+
+### 2026-07-29 — Keep climate cards on one line
+- Changed `.climate-strip` to use a non-wrapping flexbox instead of CSS grid to ensure cards stay on a single line on smaller screens.
+- Updated `.climate-metric` with `flex: 1` and `min-width: 0` to shrink gracefully.
+- Added text truncation (`text-overflow: ellipsis`) to `.climate-label` and `.climate-val` to prevent internal text from stretching the cards or wrapping.

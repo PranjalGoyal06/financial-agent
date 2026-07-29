@@ -27,6 +27,9 @@ class ResearchState(TypedDict):
     Uses TypedDict fields with custom merge annotation handlers to support
     concurrent node updates during the fan-out collection and synthesis stages.
     """
+    
+    # Orchestration configuration
+    async_execution: bool
 
     run_id: str
     user_id: str
@@ -34,6 +37,7 @@ class ResearchState(TypedDict):
 
     # ── Targets determined by the Planner Node ────────────────────────────────
     tickers: list[str]
+    discovered_tickers: list[str]
     sectors: list[str]
     ticker_to_sector: dict[str, str]
 

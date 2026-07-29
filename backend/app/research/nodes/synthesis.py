@@ -21,6 +21,8 @@ from app.research.schemas import (
 )
 from app.research.state import ResearchState
 from app.research.logger import get_run_logger
+from app.research.utils import run_concurrently
+from app.market_data.provider import normalize_ticker_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +48,23 @@ async def macro_synthesis_node(state: ResearchState) -> dict:
     
     try:
         res = await model.ainvoke(messages)
+        if res is None:
+            logger.warning("Macro synthesis returned None from LLM model.")
+            run_logger.log_event("macro_synthesis", "node_warning", "Macro synthesis returned empty response. Skipping macro update.")
+            return {}
+        run_logger.log_debug("macro_synthesis", "LLM response generated", {"res": res.model_dump()})
         # Validate citations
         val = validate_citations(res.analysis_markdown + " ".join(res.key_drivers), pack)
         if not val.is_valid:
             logger.warning("Macro synthesis contained invalid citations: %s", val.invalid_citations)
+            run_logger.log_debug("macro_synthesis", "Citation validation failed", {"invalid_citations": val.invalid_citations})
         run_logger.log_event("macro_synthesis", "node_complete", "Macro Synthesis complete.")
         return {"macro_synthesis": res}
     except Exception as exc:
-        logger.error("Macro synthesis node failed: %s", exc)
-        return {"errors": [f"Macro synthesis failed: {exc}"]}
+        clean_msg = str(exc).split("\n")[0]
+        logger.warning("Macro synthesis node failed gracefully: %s", clean_msg)
+        run_logger.log_event("macro_synthesis", "node_warning", f"Macro synthesis skipped: {clean_msg}")
+        return {}
 
 
 # ── 2. Sector Synthesis Node ───────────────────────────────────────────────────
@@ -73,10 +83,13 @@ async def _run_sector_synthesis(sector: str, state: ResearchState) -> tuple[str,
 
     try:
         res = await model.ainvoke(messages)
+        run_logger = get_run_logger(state.get("run_id"))
+        run_logger.log_debug("sector_synthesis", f"LLM response generated for {sector}", {"sector": sector, "res": res.model_dump()})
         # Validate citations
         val = validate_citations(res.analysis_markdown + " ".join(res.key_drivers), pack)
         if not val.is_valid:
             logger.warning("Sector %s synthesis contained invalid citations: %s", sector, val.invalid_citations)
+            run_logger.log_debug("sector_synthesis", f"Citation validation failed for {sector}", {"sector": sector, "invalid_citations": val.invalid_citations})
         return sector, res
     except Exception as exc:
         logger.error("Sector synthesis failed for %s: %s", sector, exc)
@@ -91,11 +104,11 @@ async def sector_synthesis_node(state: ResearchState) -> dict:
 
     sectors = state.get("sectors") or []
     if not sectors:
-        run_logger.log_event("sector_synthesis", "node_complete", "Sector Synthesis skipped (no sectors)")
+        run_logger.log_event("sector_synthesis", "node_skipped", "Sector Synthesis skipped (no sectors)")
         return {}
 
     tasks = [_run_sector_synthesis(sec, state) for sec in sectors]
-    results = await asyncio.gather(*tasks)
+    results = await run_concurrently(tasks, execute_async=state.get("async_execution", True))
 
     updates: dict = {}
     errors: list[str] = []
@@ -123,6 +136,9 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
     pack = state.get("ticker_evidence", {}).get(ticker)
     if not pack or not pack.items:
         logger.warning("No evidence for ticker %r. Skipping synthesis.", ticker)
+        run_logger = get_run_logger(state.get("run_id"))
+        for step in ["ts_draft", "ts_critique", "ts_revise", "ts_cio", "ts_validate"]:
+            run_logger.log_event(step, "node_skipped", f"{step} skipped (no evidence for {ticker})")
         return ticker, None
         
     sector = state.get("ticker_to_sector", {}).get(ticker)
@@ -156,8 +172,10 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
     evidence_text = "\n".join(f"[{item.id}] {item.summary}" for item in pack.items)
 
     # 3a. Draft Thesis (Bear-case first - Tier 2 Nemotron)
+    run_logger = get_run_logger(state.get("run_id"))
+    run_logger.log_event("ts_draft", "node_start", f"Drafting thesis for {ticker}")
     draft_prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an equity analyst. Draft a comprehensive thesis. Crucially, start with the BEAR CASE and KILL THE COMPANY risk before any bull case. Return the TickerSynthesis JSON."),
+        ("system", "You are an equity analyst. Draft a comprehensive thesis. Crucially, start with the BEAR CASE and KILL THE COMPANY risk before any bull case. Always assign a realistic confidence_score between 50 and 95 reflecting your conviction level (e.g., 80 for high conviction, 60 for moderate). Return the TickerSynthesis JSON."),
         ("user", "Ticker: {ticker}\n\nCompany Metadata:\n{metadata}\n\nSector Context: {sector_summary}\n\nEvidence:\n{evidence}")
     ])
     draft_model = get_structured_model(TickerSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
@@ -169,11 +187,15 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
             "sector_summary": sector_summary,
             "evidence": evidence_text
         })
+        run_logger.log_debug("ts_draft", f"Draft complete for {ticker}", {"ticker": ticker, "draft": draft.model_dump()})
+        run_logger.log_event("ts_draft", "node_complete", f"Draft complete for {ticker}")
     except Exception as exc:
         logger.error("Ticker %s draft synthesis failed: %s", ticker, exc)
+        run_logger.log_event("ts_draft", "node_error", f"Draft failed for {ticker}: {exc}")
         return ticker, None
 
     # 3b. Adversarial Critique (Tier 2 Nemotron)
+    run_logger.log_event("ts_critique", "node_start", f"Critiquing thesis for {ticker}")
     critique_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a red-team analyst. Critique this draft thesis. Identify logical leaps, missing risks, or unwarranted optimism. Extract weaknesses as a list of strings."),
         ("user", "Draft Thesis:\n{draft}\n\nEvidence:\n{evidence}")
@@ -186,13 +208,17 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
             "evidence": evidence_text
         })
         critiques = critique_res.weaknesses
+        run_logger.log_debug("ts_critique", f"Critique complete for {ticker}", {"ticker": ticker, "critiques": critiques})
+        run_logger.log_event("ts_critique", "node_complete", f"Critique complete for {ticker}")
     except Exception as exc:
         logger.warning("Ticker %s critique failed: %s", ticker, exc)
+        run_logger.log_event("ts_critique", "node_error", f"Critique failed for {ticker}: {exc}")
         critiques = []
 
     # 3c. Revised Thesis (Tier 2 Nemotron)
+    run_logger.log_event("ts_revise", "node_start", f"Revising thesis for {ticker}")
     revise_prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are the original equity analyst. Revise your draft thesis to address the red-team critiques. Defend your stance or adjust your recommendation/confidence. Return the TickerSynthesis JSON."),
+        ("system", "You are the original equity analyst. Revise your draft thesis to address the red-team critiques. Defend your stance or adjust your recommendation/confidence. Ensure confidence_score is a realistic integer between 50 and 95. Return the TickerSynthesis JSON."),
         ("user", "Draft Thesis:\n{draft}\n\nCritiques:\n{critiques}\n\nEvidence:\n{evidence}")
     ])
     revise_model = get_structured_model(TickerSynthesis, temperature=0.1, provider="ollama_cloud", fallback_provider="ollama")
@@ -203,11 +229,15 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
             "critiques": "\n".join(critiques),
             "evidence": evidence_text
         })
+        run_logger.log_debug("ts_revise", f"Revision complete for {ticker}", {"ticker": ticker, "revised": revised.model_dump()})
+        run_logger.log_event("ts_revise", "node_complete", f"Revision complete for {ticker}")
     except Exception as exc:
         logger.error("Ticker %s revise synthesis failed: %s", ticker, exc)
+        run_logger.log_event("ts_revise", "node_error", f"Revision failed for {ticker}: {exc}")
         return ticker, None
 
     # 3d. Frontier Judgment (CIO - Tier 3 Gemini)
+    run_logger.log_event("ts_cio", "node_start", f"CIO judgment for {ticker}")
     cio_prompt = ChatPromptTemplate.from_messages([
         ("system", "You are the Chief Investment Officer. Review the analyst's revised thesis. You hold final veto power. Adjust the recommendation or confidence if the evidence doesn't support the analyst's conviction. Explicitly state what changed and why. Return the FrontierTickerSynthesis JSON."),
         ("user", "Revised Thesis:\n{revised}\n\nEvidence:\n{evidence}")
@@ -225,14 +255,17 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
             "revised": revised.model_dump_json(),
             "evidence": evidence_text
         })
+        run_logger.log_debug("ts_cio", f"CIO Judgment complete for {ticker}", {"ticker": ticker, "judgment": cio_judgment.model_dump()})
         # Merge frontier changes into final output
         final_output.recommendation = cio_judgment.recommendation
         final_output.confidence_score = cio_judgment.confidence_score
         final_output.target_price = cio_judgment.target_price
         # Add the frontier reasoning to the rationale
         final_output.rationale.insert(0, f"CIO Judgment: {cio_judgment.what_changed_and_why}")
+        run_logger.log_event("ts_cio", "node_complete", f"CIO Judgment complete for {ticker}")
     except Exception as exc:
         logger.warning("Ticker %s CIO Judgment failed (all retries/fallbacks exhausted). Falling back to Analyst Revised Thesis: %s", ticker, exc)
+        run_logger.log_event("ts_cio", "node_warning", f"CIO Judgment failed for {ticker}, falling back: {exc}")
         final_output.frontier_judgment_unavailable = True
 
     # Assign provenance fields based on state
@@ -244,6 +277,7 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
         final_output.discovery_reason = "Surfaced via automated discovery scanning."
 
     # Validate citations on the final output
+    run_logger.log_event("ts_validate", "node_start", f"Validating citations for {ticker}")
     citation_text = (
         final_output.analysis_markdown + " " +
         " ".join(final_output.rationale) + " " +
@@ -253,7 +287,9 @@ async def _run_ticker_synthesis(ticker: str, state: ResearchState) -> tuple[str,
     val = validate_citations(citation_text, pack)
     if not val.is_valid:
         logger.warning("Ticker %s synthesis contained invalid citations: %s", ticker, val.invalid_citations)
+        run_logger.log_debug("ts_validate", f"Citation validation failed for {ticker}", {"ticker": ticker, "invalid_citations": val.invalid_citations})
         
+    run_logger.log_event("ts_validate", "node_complete", f"Citation validation complete for {ticker}")
     return ticker, final_output
 
 
@@ -261,12 +297,13 @@ async def ticker_synthesis_node(state: ResearchState) -> dict:
     """Synthesize ticker-level evidence using a 5-step pipeline."""
     run_id = state.get("run_id")
     run_logger = get_run_logger(run_id)
-    run_logger.log_event("ticker_synthesis", "node_start", f"Ticker Synthesis Node starting | run_id={run_id}")
-
+    
     tickers = state.get("tickers") or []
     if not tickers:
-        run_logger.log_event("ticker_synthesis", "node_complete", "Ticker Synthesis skipped (no tickers)")
+        run_logger.log_event("ticker_synthesis", "node_skipped", "Ticker Synthesis skipped (no tickers)")
         return {}
+
+    run_logger.log_event("ticker_synthesis", "node_start", f"Ticker Synthesis Node starting | run_id={run_id}", {"total_tickers": len(tickers)})
 
     sem = asyncio.Semaphore(2)
 
@@ -274,10 +311,11 @@ async def ticker_synthesis_node(state: ResearchState) -> dict:
         async with sem:
             res = await _run_ticker_synthesis(ticker_symbol, state)
             await asyncio.sleep(1.0)
+            run_logger.log_event("ticker_synthesis", "progress", f"Completed synthesis for {ticker_symbol}", {"total_tickers": len(tickers), "ticker": ticker_symbol})
             return res
 
     tasks = [_paced_synthesis(tick) for tick in tickers]
-    results = await asyncio.gather(*tasks)
+    results = await run_concurrently(tasks, execute_async=state.get("async_execution", True))
 
     updates: dict = {}
     errors: list[str] = []
@@ -287,7 +325,7 @@ async def ticker_synthesis_node(state: ResearchState) -> dict:
         else:
             errors.append(f"Ticker synthesis failed for {ticker}")
 
-    run_logger.log_event("ticker_synthesis", "node_complete", f"Ticker Synthesis complete. Processed {len(results)} tickers.")
+    run_logger.log_event("ticker_synthesis", "node_complete", f"Ticker Synthesis complete. Processed {len(results)} tickers.", {"total_tickers": len(tickers)})
     result: dict[str, Any] = {"ticker_synthesis": updates}
     if errors:
         result["errors"] = errors
@@ -339,14 +377,21 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
     
     if len(valid_tickers) > 1:
         try:
-            data = await asyncio.to_thread(yf.download, valid_tickers, period="3mo", progress=False)
+            ticker_map = {normalize_ticker_symbol(t): t for t in valid_tickers}
+            norm_tickers = list(ticker_map.keys())
+            data = await asyncio.to_thread(yf.download, norm_tickers, period="3mo", progress=False)
             if not data.empty and 'Close' in data:
                 closes = data['Close']
-                # compute_correlation_matrix expects dict[str, list[float]]
                 ticker_bars = {}
-                for tick in valid_tickers:
-                    if tick in closes:
-                        ticker_bars[tick] = closes[tick].dropna().values.tolist()
+                for norm_t, orig_t in ticker_map.items():
+                    if len(norm_tickers) == 1:
+                        # yfinance returns Series when single ticker
+                        series = closes.dropna()
+                        ticker_bars[orig_t] = series.values.tolist()
+                    elif norm_t in closes:
+                        series = closes[norm_t].dropna()
+                        if not series.empty:
+                            ticker_bars[orig_t] = series.values.tolist()
                 
                 if ticker_bars:
                     correlation_matrix = compute_correlation_matrix(ticker_bars)
@@ -414,6 +459,9 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
 
     try:
         res = await model.ainvoke(messages)
+        if res is None:
+            raise ValueError("LLM returned empty structured response for portfolio synthesis.")
+        run_logger.log_debug("portfolio_synthesis", "LLM response generated", {"res": res.model_dump()})
         # Validate citations
         val = validate_citations(
             res.analysis_markdown + " " + " ".join(res.allocation_adjustments),
@@ -421,11 +469,27 @@ async def portfolio_synthesis_node(state: ResearchState) -> dict:
         )
         if not val.is_valid:
             logger.warning("Portfolio synthesis contained invalid citations: %s", val.invalid_citations)
+            run_logger.log_debug("portfolio_synthesis", "Citation validation failed", {"invalid_citations": val.invalid_citations})
         run_logger.log_event("portfolio_synthesis", "node_complete", "Portfolio Synthesis complete.")
         return {
             "portfolio_synthesis": res,
             "portfolio_evidence": pack  # Pass to state for persist_node
         }
     except Exception as exc:
-        logger.error("Portfolio synthesis node failed: %s", exc)
-        return {"errors": [f"Portfolio synthesis failed: {exc}"]}
+        clean_msg = str(exc).split("\n")[0]
+        logger.warning("Portfolio synthesis LLM call failed, generating fallback portfolio summary: %s", clean_msg)
+        run_logger.log_event(
+            "portfolio_synthesis",
+            "node_warning",
+            f"Portfolio synthesis LLM call failed ({clean_msg}). Fallback portfolio summary generated."
+        )
+        fallback_res = PortfolioSynthesis(
+            allocation_adjustments=["Maintain target weights across active watchlist positions."],
+            top_picks=[t for t, rec in ticker_recs.items() if getattr(rec, "recommendation", "").upper() in ("BUY", "STRONG BUY")],
+            risk_aggregates="Portfolio concentration risk review pending full frontier synthesis.",
+            analysis_markdown=f"### Portfolio Synthesis (Fallback Summary)\n\nAutomated frontier portfolio synthesis degraded gracefully due to model limits ({clean_msg}). Analyst recommendations for watchlist tickers remain active.",
+        )
+        return {
+            "portfolio_synthesis": fallback_res,
+            "portfolio_evidence": pack
+        }

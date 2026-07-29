@@ -19,6 +19,28 @@ const formatType = (type: string, sourceType: string) => {
   return type || sourceType;
 };
 
+function getArtifactDateKey(isoDateStr?: string): { key: string; label: string; timestamp: number } {
+  if (!isoDateStr) {
+    return { key: 'unknown', label: 'Earlier Artifacts', timestamp: 0 };
+  }
+  const dateObj = new Date(isoDateStr);
+  if (isNaN(dateObj.getTime())) {
+    return { key: 'unknown', label: 'Earlier Artifacts', timestamp: 0 };
+  }
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const artifactDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+  const diffDays = Math.round((today.getTime() - artifactDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  let label = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  if (diffDays === 0) label = `Today — ${dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  else if (diffDays === 1) label = `Yesterday — ${dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+
+  const key = dateObj.toISOString().split('T')[0];
+  return { key, label, timestamp: artifactDate.getTime() };
+}
+
 export function LibraryZone() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -54,6 +76,7 @@ export function LibraryZone() {
             type: type,
             displayType: formatType(type, a.source_type),
             date: a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Unknown Date',
+            created_at: a.created_at,
             content: a.content_markdown,
             source_type: a.source_type
           };
@@ -145,6 +168,20 @@ export function LibraryZone() {
     return matchesCategory && matchesSearch;
   });
 
+  const groupedArtifacts = React.useMemo(() => {
+    const groups: Map<string, { label: string; timestamp: number; items: Artifact[] }> = new Map();
+
+    for (const a of filteredArtifacts) {
+      const { key, label, timestamp } = getArtifactDateKey(a.created_at);
+      if (!groups.has(key)) {
+        groups.set(key, { label, timestamp, items: [] });
+      }
+      groups.get(key)!.items.push(a);
+    }
+
+    return Array.from(groups.values()).sort((a, b) => b.timestamp - a.timestamp);
+  }, [filteredArtifacts]);
+
   return (
     <div className="library-zone">
       <header className="library-header">
@@ -183,19 +220,28 @@ export function LibraryZone() {
         ))}
       </div>
 
-      <div className="library-grid">
-        {filteredArtifacts.map((artifact, index) => (
-          <ArtifactCard 
-            key={artifact.id} 
-            artifact={artifact} 
-            index={index} 
-            onClick={setSelectedArtifact}
-            onDelete={handleDelete}
-            onRename={handleRename}
-          />
+      <div className="library-content" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        {groupedArtifacts.map((group, gIdx) => (
+          <div key={group.label} className="library-date-group">
+            <h2 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px', borderBottom: '1px solid var(--line)', paddingBottom: '8px' }}>
+              {group.label}
+            </h2>
+            <div className="library-grid">
+              {group.items.map((artifact, index) => (
+                <ArtifactCard 
+                  key={artifact.id} 
+                  artifact={artifact} 
+                  index={index} 
+                  onClick={setSelectedArtifact}
+                  onDelete={handleDelete}
+                  onRename={handleRename}
+                />
+              ))}
+            </div>
+          </div>
         ))}
         {filteredArtifacts.length === 0 && (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: 'var(--ink-light)' }}>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--ink-light)' }}>
             No artifacts found.
           </div>
         )}

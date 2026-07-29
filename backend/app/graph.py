@@ -116,6 +116,39 @@ class SequentialToolNode(ToolNode):
 
 from langchain_core.messages.utils import trim_messages, count_tokens_approximately
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph.message import add_messages
+from typing import Annotated
+from typing_extensions import TypedDict
+from langgraph.graph import START, END, StateGraph
+from app.compare.graph import compare_agent
+from app.create_artifact.graph import create_artifact_graph
+from app.recommend.graph import recommend_agent
+
+
+class MasterState(TypedDict, total=False):
+    messages: Annotated[list[AnyMessage], add_messages]
+    request_id: str
+    llm_provider: str
+    llm_model: str
+    
+    # compare
+    tickers: list[str]
+    focus: str | None
+    market_data: dict | None
+    
+    # recommend
+    ticker: str | None
+    prior_research: dict | None
+    
+    # artifact
+    intent: dict | None
+    evidence_pack: dict | None
+    markdown_content: str | None
+    
+    # outputs
+    envelope: Any | None
+    error: str | None
+
 
 def get_state_modifier(portfolio_context: str):
     def state_modifier(state: dict) -> list[AnyMessage]:
@@ -132,6 +165,7 @@ def get_state_modifier(portfolio_context: str):
         return [system_prompt] + trimmed
         
     return state_modifier
+
 
 def get_agent(
     portfolio_context: str,
@@ -159,10 +193,41 @@ def get_agent(
     """
     llm = get_chat_model(temperature=0.1, streaming=True, provider=provider, model=model)
 
-    return create_react_agent(
+    paisa_agent = create_react_agent(
         llm,
         tools=SequentialToolNode(AGENT_TOOLS),
         prompt=get_state_modifier(portfolio_context),
-        checkpointer=checkpointer,
         version="v1",
     )
+    
+    workflow = StateGraph(MasterState)
+    
+    workflow.add_node("paisa_agent", paisa_agent)
+    workflow.add_node("compare_agent", compare_agent)
+    workflow.add_node("create_artifact_agent", create_artifact_graph)
+    workflow.add_node("recommend_agent", recommend_agent)
+    
+    def route_request(state: MasterState) -> str:
+        messages = state.get("messages", [])
+        if not messages:
+            return "paisa_agent"
+            
+        last_msg = messages[-1].content.strip()
+        if last_msg.startswith("/compare"):
+            return "compare_agent"
+        elif last_msg.startswith("/create-artifact"):
+            return "create_artifact_agent"
+        elif last_msg.startswith("/recommend"):
+            return "recommend_agent"
+        else:
+            return "paisa_agent"
+            
+    workflow.add_conditional_edges(START, route_request)
+    
+    workflow.add_edge("paisa_agent", END)
+    workflow.add_edge("compare_agent", END)
+    workflow.add_edge("create_artifact_agent", END)
+    workflow.add_edge("recommend_agent", END)
+    
+    return workflow.compile(checkpointer=checkpointer)
+

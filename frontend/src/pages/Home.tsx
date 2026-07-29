@@ -11,6 +11,10 @@ export function Home() {
   const [recentSessions, setRecentSessions] = useState<any[]>([]);
 
   useEffect(() => {
+    return () => setIsStarting(false);
+  }, []);
+
+  useEffect(() => {
     fetch("/api/chat/sessions")
       .then(res => res.json())
       .then(data => {
@@ -48,42 +52,40 @@ export function Home() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-      <BriefingZone 
-        onPreFillChat={handlePreFillChat} 
-        onNavigateToAsset={(ticker) => {
-          navigate('/research?ticker=' + ticker);
-        }} 
-      />
-      
-      <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
-        <h3 style={{ marginBottom: '16px', color: 'var(--text-light)' }}>Start a new conversation</h3>
-        <ChatComposer 
-          onSubmit={(msg) => { setInput(msg); handleStartChat(msg); }}
-          isStreaming={isStarting}
-          placeholder="Ask PAISA about your portfolio..."
-          initialValue={input}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <BriefingZone 
+          onPreFillChat={handlePreFillChat} 
+          onNavigateToAsset={(ticker) => {
+            navigate('/research?ticker=' + ticker);
+          }} 
         />
-        <div className="prompt-chips-container">
-          <button className="prompt-chip" onClick={() => handleStartChat("Analyze my portfolio risk")}>Analyze my portfolio risk</button>
-          <button className="prompt-chip" onClick={() => handleStartChat("What are the latest tech tailwinds?")}>What are the latest tech tailwinds?</button>
-          <button className="prompt-chip" onClick={() => handleStartChat("Review my asset allocation")}>Review my asset allocation</button>
+        
+        {recentSessions.length > 0 && (
+          <div className="recent-conversations-container" style={{ maxWidth: '800px', margin: '24px auto', width: '100%' }}>
+            <h3 className="recent-conversations-title">Recent Conversations</h3>
+            <div className="recent-conversations-grid">
+              {recentSessions.map(s => (
+                <Link to={`/chat/${s.id}`} key={s.id} className="chat-session-item" style={{ border: '1px solid var(--line)', background: 'var(--surface)' }}>
+                  <span className="chat-session-title">{s.title || "New Chat"}</span>
+                  <span className="chat-session-time">{new Date(s.updated_at).toLocaleDateString()}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <div style={{ width: '100%', flexShrink: 0, borderTop: '1px solid var(--line)', background: 'var(--app-bg)' }}>
+        <div style={{ padding: '24px 24px 96px 24px', maxWidth: '800px', margin: '0 auto', width: '100%' }}>
+          <ChatComposer 
+            onSubmit={(msg) => { setInput(msg); handleStartChat(msg); }}
+            isStreaming={isStarting}
+            placeholder="Ask anything, @ to mention artifacts, $ to mention stocks, / for commands"
+            initialValue={input}
+          />
         </div>
       </div>
-
-      {recentSessions.length > 0 && (
-        <div className="recent-conversations-container" style={{ maxWidth: '800px', margin: '0 auto 40px auto', width: '100%' }}>
-          <h3 className="recent-conversations-title">Recent Conversations</h3>
-          <div className="recent-conversations-grid">
-            {recentSessions.map(s => (
-              <Link to={`/chat/${s.id}`} key={s.id} className="chat-session-item" style={{ border: '1px solid var(--line)', background: 'var(--surface)' }}>
-                <span className="chat-session-title">{s.title || "New Chat"}</span>
-                <span className="chat-session-time">{new Date(s.updated_at).toLocaleDateString()}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

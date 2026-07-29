@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.llm.provider import get_structured_model
 from app.research.state import ResearchState
 from app.research.store import search_prior_artifacts
+from app.research.utils import run_concurrently
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ async def reconcile_with_prior(state: ResearchState) -> dict:
     
     ticker_synthesis = state.get("ticker_synthesis", {})
     if not ticker_synthesis:
-        run_logger.log_event("reconcile_with_prior", "node_complete", "No ticker synthesis available to reconcile.")
+        run_logger.log_event("reconcile_with_prior", "node_skipped", "Reconcile Node skipped (no ticker synthesis results)")
         return {}
         
     tasks = []
@@ -68,7 +69,7 @@ async def reconcile_with_prior(state: ResearchState) -> dict:
         current_str = data.model_dump_json()
         tasks.append(_reconcile_ticker(ticker, current_str))
         
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await run_concurrently(tasks, execute_async=state.get("async_execution", True), return_exceptions=True)
     
     drift_reports = {}
     for res in results:
@@ -80,8 +81,12 @@ async def reconcile_with_prior(state: ResearchState) -> dict:
         ticker, report = res
         if report:
             drift_reports[ticker] = report
+            run_logger.log_debug("reconcile_with_prior", f"Drift report generated for {ticker}", {"ticker": ticker, "report": report})
             run_logger.log_event("reconcile_with_prior", "drift_report", f"Drift report for {ticker}: {report}", {"ticker": ticker, "report": report})
             
-    run_logger.log_event("reconcile_with_prior", "node_complete", f"Reconciliation complete. Generated {len(drift_reports)} drift reports.", {"drift_reports": drift_reports})
+    if not drift_reports:
+        run_logger.log_event("reconcile_with_prior", "node_skipped", "Reconciliation skipped (no prior state found to reconcile against)")
+    else:
+        run_logger.log_event("reconcile_with_prior", "node_complete", f"Reconciliation complete. Generated {len(drift_reports)} drift reports.", {"drift_reports": drift_reports})
     logger.info("Reconciliation complete. Generated %d drift reports.", len(drift_reports))
     return {"drift_reports": drift_reports}

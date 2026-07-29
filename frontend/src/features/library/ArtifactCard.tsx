@@ -9,6 +9,7 @@ export interface Artifact {
   excerpt: string;
   type: ArtifactType;
   date: string;
+  created_at?: string;
   content: string; // Markdown or specific payload
   source_type?: string;
   displayType?: string;

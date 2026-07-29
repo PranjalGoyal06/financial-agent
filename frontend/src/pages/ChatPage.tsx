@@ -114,32 +114,31 @@ export function ChatPage() {
   const nextId = useRef(Date.now());
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const [selectedModelId, setSelectedModelId] = useState(() => {
-    const p = localStorage.getItem("paisa_llm_provider") || "groq";
-    const m = localStorage.getItem("paisa_llm_model");
-    if (m) {
-      const match = AVAILABLE_MODELS.find((opt) => opt.provider === p && opt.model === m);
-      if (match) return match.id;
-    }
-    const matchProvider = AVAILABLE_MODELS.find((opt) => opt.provider === p);
-    return matchProvider ? matchProvider.id : AVAILABLE_MODELS[0].id;
-  });
-
   const hasAutoSent = useRef(false);
 
   useEffect(() => {
     if (!session_id) return;
+    
+    // Bug 5: Reset state on session change
+    setMessages([]);
+    setDraftBlocks([]);
+    setIsStreaming(false);
+    setStatus("Connected");
+    // Bug 4: Reset auto-send
+    hasAutoSent.current = false;
+
     fetch(`/api/chat/sessions/${session_id}`)
       .then(res => res.json())
       .then(data => {
+        let loaded: Message[] = [];
         if (data && data.messages) {
-           const loaded: Message[] = data.messages.map((m: any) => ({
+           loaded = data.messages.map((m: any) => ({
              id: m.id,
              role: m.role,
              content: m.content,
-             blocks: m.role === 'assistant' ? [{ type: 'text', text: m.content }] : undefined
+             // Bug 2: Read blocks_json
+             blocks: m.blocks_json ? m.blocks_json : (m.role === 'assistant' ? [{ type: 'text', text: m.content }] : undefined)
            }));
-           setMessages(loaded);
         }
         
         // Handle auto-send from Home
@@ -147,7 +146,13 @@ export function ChatPage() {
            const initialMsg = location.state.initialMessage;
            hasAutoSent.current = true;
            navigate(location.pathname, { replace: true, state: {} });
-           sendMessageRaw(initialMsg);
+           
+           // Bug 1: Inject user message synchronously before async sendMessageRaw
+           const userMsg: Message = { id: nextId.current++, role: "user", content: initialMsg };
+           setMessages([...loaded, userMsg]);
+           sendMessageRaw(initialMsg, [], true);
+        } else {
+           setMessages(loaded);
         }
       })
       .catch(err => console.error("Failed to load session", err));
@@ -164,14 +169,16 @@ export function ChatPage() {
     }
   }
 
-  async function sendMessageRaw(message: string) {
+  async function sendMessageRaw(message: string, mentions: { type: string; id: string; label: string }[] = [], skipAddUserMsg: boolean = false) {
     if (!message.trim() || !session_id) return;
     
     if (isStreaming) stopStreaming();
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    setMessages((cur) => [...cur, { id: nextId.current++, role: "user", content: message }]);
+    if (!skipAddUserMsg) {
+      setMessages((cur) => [...cur, { id: nextId.current++, role: "user", content: message }]);
+    }
     setInput("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
     setDraftBlocks([]);
@@ -183,14 +190,24 @@ export function ChatPage() {
     let wasAborted = false;
 
     try {
-      const activeConfig = getSelectedModelConfig(selectedModelId);
+      const p = localStorage.getItem("paisa_llm_provider") || "groq";
+      const m = localStorage.getItem("paisa_llm_model");
+      let activeConfig = AVAILABLE_MODELS[0];
+      if (m) {
+        const match = AVAILABLE_MODELS.find((opt) => opt.provider === p && opt.model === m);
+        if (match) activeConfig = match;
+      } else {
+        const matchProvider = AVAILABLE_MODELS.find((opt) => opt.provider === p);
+        if (matchProvider) activeConfig = matchProvider;
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ 
           message,
           thread_id: session_id,
-          mentions: [],
+          mentions: mentions.map(m => ({ type: m.type, id: m.id, label: m.label })),
           llm_provider: activeConfig.provider,
           llm_model: activeConfig.model,
         }),
@@ -320,10 +337,10 @@ export function ChatPage() {
 
       <div className="composer-wrap">
         <ChatComposer 
-          onSubmit={(msg) => sendMessageRaw(msg)}
+          onSubmit={(msg, mentions) => sendMessageRaw(msg, mentions)}
           isStreaming={isStreaming}
           onStop={stopStreaming}
-          placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Type your message..."}
+          placeholder={isStreaming ? "Ask a new prompt to interrupt..." : "Type your message... (use / $ @ for commands)"}
         />
       </div>
     </div>

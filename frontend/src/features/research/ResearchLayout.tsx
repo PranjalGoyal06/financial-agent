@@ -2,8 +2,10 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { OrchestrationGraph } from './components/OrchestrationGraph';
 import { NodeDetailsPanel } from './components/NodeDetailsPanel';
-import { FileText, Plus, Activity, PanelLeftClose, PanelLeftOpen, Clock, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { FileText, Plus, Activity, PanelLeftClose, PanelLeftOpen, Clock, Calendar, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import './research.css';
+import { ScheduleModal } from './ScheduleModal';
+import { ActiveSchedulesModal } from './ActiveSchedulesModal';
 
 import { api, ResearchRun } from './api';
 import { useResearchRun } from './useResearchRun';
@@ -29,11 +31,28 @@ export function ResearchLayout() {
   const [runsList, setRunsList] = useState<ResearchRun[]>([]);
   const [activeMenuRunId, setActiveMenuRunId] = useState<string | null>(null);
 
-  const { nodes, edges, runStatus } = useResearchRun(selectedRunId ?? null);
+  const { nodes, edges, runStatus, events } = useResearchRun(selectedRunId ?? null);
 
   // State for Watchlists
   const [watchlists, setWatchlists] = useState<import('./api').Watchlist[]>([]);
   const [selectedWatchlistId, setSelectedWatchlistId] = useState<string>('');
+  // State for Schedules
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isActiveSchedulesModalOpen, setIsActiveSchedulesModalOpen] = useState(false);
+  const [schedulesCount, setSchedulesCount] = useState<number>(0);
+
+  const fetchSchedulesCount = useCallback(async () => {
+    try {
+      const res = await api.getSchedules();
+      setSchedulesCount(res.schedules.length);
+    } catch (e) {
+      console.error("Failed to fetch schedules count", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSchedulesCount();
+  }, [fetchSchedulesCount]);
 
   const fetchRuns = useCallback(async () => {
     try {
@@ -45,6 +64,24 @@ export function ResearchLayout() {
       return [];
     }
   }, []);
+
+  // Re-fetch when the actively viewed run finishes
+  useEffect(() => {
+    if (runStatus === 'completed' || runStatus === 'failed' || runStatus === 'cancelled') {
+      fetchRuns();
+    }
+  }, [runStatus, fetchRuns]);
+
+  // Poll every 15s if ANY run in the sidebar is 'running'
+  useEffect(() => {
+    const hasRunning = runsList.some(r => r.status === 'running');
+    if (!hasRunning) return;
+    
+    const interval = setInterval(() => {
+      fetchRuns();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [runsList, fetchRuns]);
 
   useEffect(() => {
     // Fetch initial runs and watchlists
@@ -68,7 +105,8 @@ export function ResearchLayout() {
     setIsTriggering(true);
     try {
       const targetId = selectedWatchlistId || undefined;
-      const data = await api.triggerRun(targetId);
+      const asyncExecution = localStorage.getItem("paisa_async_research") !== "false";
+      const data = await api.triggerRun(targetId, asyncExecution);
       const newRun: ResearchRun = {
         id: data.run_id,
         status: 'running',
@@ -121,6 +159,39 @@ export function ResearchLayout() {
     setSelectedNodeId(id);
   }, []);
 
+  const prevNodesRef = React.useRef<typeof nodes>([]);
+  const prevRunIdRef = React.useRef<string | null>(null);
+
+  // Auto-switch on node status change
+  useEffect(() => {
+    if (runStatus === 'running') {
+      const prevNodes = prevNodesRef.current;
+      
+      if (prevRunIdRef.current !== selectedRunId) {
+         const runningNode = nodes.find(n => n.data.status === 'running' && n.id !== 'ticker_synthesis');
+         if (runningNode) setSelectedNodeId(runningNode.id);
+      } else {
+        let changedNode = null;
+        for (const node of nodes) {
+          const prevNode = prevNodes.find(n => n.id === node.id);
+          if (prevNode && prevNode.data.status !== node.data.status) {
+            changedNode = node;
+            if (node.data.status === 'running') {
+              break;
+            }
+          }
+        }
+        
+        if (changedNode && changedNode.id !== 'ticker_synthesis') {
+          setSelectedNodeId(changedNode.id);
+        }
+      }
+    }
+    
+    prevNodesRef.current = nodes;
+    prevRunIdRef.current = selectedRunId;
+  }, [nodes, runStatus, selectedRunId]);
+
   return (
     <div className="research-layout" onClick={() => setActiveMenuRunId(null)}>
       
@@ -140,7 +211,9 @@ export function ResearchLayout() {
           <ul className="research-sidebar__list">
             {runsList.map((run) => (
               <li key={run.id} style={{ position: 'relative' }}>
-                <button 
+                <div 
+                  role="button"
+                  tabIndex={0}
                   onClick={() => navigate(`/research/${run.id}`)}
                   className={`research-sidebar__item ${run.id === selectedRunId ? 'research-sidebar__item--selected' : ''}`}
                   style={{ background: 'transparent', border: 'none', width: '100%', textAlign: 'left', padding: isSidebarCollapsed ? '12px' : '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }}
@@ -180,7 +253,7 @@ export function ResearchLayout() {
                       )}
                     </div>
                   )}
-                </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -222,21 +295,19 @@ export function ResearchLayout() {
               </select>
             )}
             <button 
-              onClick={async () => {
-                const cron = prompt('Enter a cron expression to schedule a daily run (e.g., "0 17 * * 1-5" for 5 PM weekdays):', '0 17 * * 1-5');
-                if (cron) {
-                  try {
-                    await api.scheduleRun(cron, selectedWatchlistId || undefined);
-                    alert('Run scheduled successfully!');
-                  } catch (e) {
-                    alert('Failed to schedule run.');
-                  }
-                }
-              }}
+              onClick={() => setIsScheduleModalOpen(true)}
               className="research-btn"
             >
               <Clock size={16} />
               Schedule
+            </button>
+            <button
+              onClick={() => setIsActiveSchedulesModalOpen(true)}
+              className="research-btn"
+              title="View active scheduled runs"
+            >
+              <Calendar size={16} />
+              Schedules {schedulesCount > 0 && `(${schedulesCount})`}
             </button>
             <button 
               onClick={handleTriggerNewRun}
@@ -282,13 +353,32 @@ export function ResearchLayout() {
             
             {selectedNodeId && (
               <NodeDetailsPanel
-                nodeData={selectedNode}
+                runId={selectedRunId || ''}
+                nodeData={{ ...selectedNode, id: selectedNodeId } as any}
+                events={events}
                 onClose={() => setSelectedNodeId(null)}
               />
             )}
           </div>
         </div>
       </main>
+
+      <ScheduleModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        selectedWatchlistName={watchlists.find(w => w.id === selectedWatchlistId)?.name}
+        onSchedule={async (cronExpression: string) => {
+          await api.scheduleRun(cronExpression, selectedWatchlistId || undefined);
+          fetchSchedulesCount();
+          alert('Run scheduled successfully!');
+        }}
+      />
+
+      <ActiveSchedulesModal
+        isOpen={isActiveSchedulesModalOpen}
+        onClose={() => setIsActiveSchedulesModalOpen(false)}
+        onSchedulesUpdated={fetchSchedulesCount}
+      />
     </div>
   );
 }

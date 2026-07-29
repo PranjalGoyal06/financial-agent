@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     groq_model: str | None = Field(default=None, validation_alias="GROQ_MODEL")
     # ── Gemini ─────────────────────────────────────────────────────────────────
     gemini_api_key: str | None = Field(default=None, validation_alias="GEMINI_API_KEY")
-    gemini_model: str | None = Field(default="gemini-2.0-flash", validation_alias="GEMINI_MODEL")
+    gemini_model: str | None = Field(default="gemini-3.5-flash-lite", validation_alias="GEMINI_MODEL")
     # ── Ollama ─────────────────────────────────────────────────────────────────
     ollama_base_url: str = Field(
         default="http://localhost:11434", validation_alias="OLLAMA_BASE_URL"
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="gemma4:e4b", validation_alias="OLLAMA_MODEL")
     # ── Ollama Cloud ───────────────────────────────────────────────────────────
     ollama_cloud_base_url: str | None = Field(default=None, validation_alias="OLLAMA_CLOUD_BASE_URL")
-    ollama_cloud_model: str | None = Field(default="nemotron", validation_alias="OLLAMA_CLOUD_MODEL")
+    ollama_cloud_model: str | None = Field(default="nemotron-3-super:cloud", validation_alias="OLLAMA_CLOUD_MODEL")
     ollama_cloud_api_key: str | None = Field(default=None, validation_alias="OLLAMA_CLOUD_API_KEY")
     # ── Tavily ─────────────────────────────────────────────────────────────────
     tavily_api_key: str | None = Field(default=None, validation_alias="TAVILY_API_KEY")

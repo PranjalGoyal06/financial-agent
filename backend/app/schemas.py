@@ -7,6 +7,7 @@ from typing import Any
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     thread_id: str | None = Field(default=None, description="Chat thread ID for checkpointer context memory.")
+    mentions: list[dict[str, Any]] = Field(default_factory=list, description="List of recognized mentions.")
     llm_provider: str | None = Field(
         default=None,
         description="LLM provider override: 'groq' or 'ollama'. Defaults to the server setting.",
@@ -37,6 +38,7 @@ class ChatMessageResponse(BaseModel):
     role: str
     content: str
     thinking: str | None = None
+    blocks_json: list[dict[str, Any]] | None = None
     tool_calls: dict[str, Any] | None = None
     tool_call_id: str | None = None
     tool_name: str | None = None

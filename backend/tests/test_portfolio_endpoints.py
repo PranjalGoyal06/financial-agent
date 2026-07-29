@@ -11,7 +11,7 @@ def test_valid_csv_upload_stores_holdings(client: TestClient) -> None:
     )
 
     response = client.post(
-        "/portfolio/upload",
+        "/api/portfolio/upload",
         files={"file": ("portfolio.csv", csv_content, "text/csv")},
     )
 
@@ -21,7 +21,7 @@ def test_valid_csv_upload_stores_holdings(client: TestClient) -> None:
     assert payload["holdings"][0]["canonical_ticker"] == "INFY.NS"
     assert payload["holdings"][0]["avg_cost"] == 1420.5
 
-    portfolio_response = client.get("/portfolio")
+    portfolio_response = client.get("/api/portfolio")
     assert portfolio_response.status_code == 200
     portfolio = portfolio_response.json()
     assert portfolio["total_holdings"] == 1
@@ -34,18 +34,18 @@ def test_second_upload_replaces_existing_holdings(client: TestClient) -> None:
     second_csv = "symbol,isin,trade_type,quantity,price\nTCS.NS,INE467B01029,buy,2,3900\n"
 
     first_response = client.post(
-        "/portfolio/upload",
+        "/api/portfolio/upload",
         files={"file": ("portfolio.csv", first_csv, "text/csv")},
     )
     assert first_response.status_code == 201
 
     second_response = client.post(
-        "/portfolio/upload",
+        "/api/portfolio/upload",
         files={"file": ("portfolio.csv", second_csv, "text/csv")},
     )
     assert second_response.status_code == 201
 
-    holdings = client.get("/portfolio").json()["holdings"]
+    holdings = client.get("/api/portfolio").json()["holdings"]
     assert len(holdings) == 1
     assert holdings[0]["canonical_ticker"] == "TCS.NS"
 
@@ -57,14 +57,14 @@ def test_invalid_upload_leaves_existing_holdings_untouched(client: TestClient) -
     
     assert (
         client.post(
-            "/portfolio/upload",
+            "/api/portfolio/upload",
             files={"file": ("portfolio.csv", valid_csv, "text/csv")},
         ).status_code
         == 201
     )
 
     response = client.post(
-        "/portfolio/upload",
+        "/api/portfolio/upload",
         files={"file": ("portfolio.csv", invalid_csv, "text/csv")},
     )
 
@@ -76,7 +76,7 @@ def test_invalid_upload_leaves_existing_holdings_untouched(client: TestClient) -
             "message": "quantity must be positive.",
         }
     ]
-    holdings = client.get("/portfolio").json()["holdings"]
+    holdings = client.get("/api/portfolio").json()["holdings"]
     assert len(holdings) == 1
     assert holdings[0]["canonical_ticker"] == "INFY.NS"
 
@@ -84,7 +84,7 @@ def test_invalid_upload_leaves_existing_holdings_untouched(client: TestClient) -
 def test_upload_rejects_non_csv_filename(client: TestClient) -> None:
     """Verify that uploading a file with a non-CSV extension returns 400."""
     response = client.post(
-        "/portfolio/upload",
+        "/api/portfolio/upload",
         files={
             "file": (
                 "notes.txt",
@@ -101,7 +101,7 @@ def test_upload_rejects_non_csv_filename(client: TestClient) -> None:
 def test_upload_rejects_malformed_utf8(client: TestClient) -> None:
     """Verify that uploading a non-UTF-8 encoded CSV returns 400."""
     response = client.post(
-        "/portfolio/upload",
+        "/api/portfolio/upload",
         files={"file": ("portfolio.csv", b"\xff\xfe", "text/csv")},
     )
 
