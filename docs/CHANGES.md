@@ -1,3 +1,24 @@
+### [2026-07-29] — Fixed `NoneType` error in Comparison Generation
+- Handled empty `card` responses in `generate_comparison_node` by throwing a `ValueError`, allowing the graph to return a graceful error payload instead of a hard crash (`AttributeError: 'NoneType' object has no attribute 'tickers'`).
+- Removed explicit instructions from the prompt telling the model to output raw JSON.
+- Why: Manual JSON instructions were causing models (like Groq) to output JSON directly into the message text instead of triggering the expected function call, resulting in LangChain's `with_structured_output` parser returning `None`.
+
+
+- Added an inline script in `frontend/index.html` to inject `data-theme="dark"` on load unless `paisa_theme` is explicitly set to `light` in local storage.
+- Why: Defaults the application to the dark aesthetic without flashing unstyled content (FOUC) and respects user overrides in the settings tab.
+
+### [2026-07-29] — Added global dark mode scrollbar styling
+- Added global `::-webkit-scrollbar` and standard `scrollbar-color` styles in `frontend/src/styles.css` utilizing CSS theme variables (`--line-strong`, `--muted`, etc.).
+- Why: Ensures scrollbars naturally match the active theme (specifically dark mode), preventing bright white scrollbars from disrupting the UI aesthetic.
+
+### [2026-07-29] — Removed gap below chat composer in ChatPage
+- Adjusted `.composer-wrap` padding in `styles.css` from `padding: 24px 0 96px 0;` to `padding: 24px 0 24px 0;`.
+- Why: Removes the oversized gap below the chat box on the Chat page while leaving the Home page unmodified.
+
+### [2026-07-29] — Fixed Chat Layout Overflow Issue
+- Replaced `height: '100%'` with `flex: 1` and `minHeight: 0` in `Home.tsx`, `ChatHome.tsx`, `ChatLayout.tsx`, and `ChatPage.tsx` root layout containers.
+- Why: Fixes a UI bug where the top header and search bar shifted completely out of bounds when the chat view scrolled programmatically due to a flex-column parent unexpectedly overflowing.
+
 ### [2026-07-29] — Fixed auto-switching behavior for Node events and logs
 - Refactored auto-switching in `ResearchLayout.tsx` to detect node status transitions (e.g. pending to running) instead of continuous enforcement.
 - Ensures the OrchestrationGraph only auto-focuses when a node changes state, leaving the user with full manual control over node selection between status updates.

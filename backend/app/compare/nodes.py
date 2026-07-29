@@ -155,12 +155,13 @@ async def generate_comparison_node(state: CompareState, config: RunnableConfig) 
     
     Generate a structured ComparisonCard evaluating these two assets symmetrically.
     For each dimension, state which asset has the stronger profile (lean), or if it's neutral.
-    
-    IMPORTANT: You must output ONLY valid, raw JSON matching the required schema. Do not output markdown tables, do not output markdown code blocks (```json), and do not include any conversational text. Return ONLY the raw JSON object.
     """
     
     try:
         card = await generator.ainvoke(prompt, config)
+        if not card:
+            raise ValueError("The model failed to generate a structured response.")
+            
         # Enforce exact tickers output
         card.tickers = tickers
         

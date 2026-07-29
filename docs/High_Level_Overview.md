@@ -122,7 +122,7 @@ dev/
 | `GET`    | `/api/research/status/{run_id}`   | Poll research run status                              |
 | `GET`    | `/api/research/stream/{run_id}`   | Live SSE stream for a research run with backlog replay|
 | `GET`    | `/api/research/events/{run_id}`   | Poll research run event history (fallback)            |
-| `GET`    | `/api/research/runs`              | Retrieve history of all research runs                 |
+| `GET`    | `/api/research/runs`              | Retrieve history of all research runs            ç     |
 | `PATCH`  | `/api/research/runs/{run_id}`     | Rename a historical research run                      |
 | `DELETE` | `/api/research/runs/{run_id}`     | Delete a historical research run                      |
 | `POST`   | `/api/research/schedule`          | Schedule a recurring research run via APScheduler     |

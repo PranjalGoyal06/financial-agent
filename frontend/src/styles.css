@@ -80,6 +80,31 @@ button:disabled {
   opacity: 0.45;
 }
 
+/* ── Global Scrollbar ──────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
 /* ── App shell ─────────────────────────────────────────────────────────────── */
 
 .app-shell {
@@ -737,7 +762,7 @@ button:disabled {
 /* ── Composer ──────────────────────────────────────────────────────────────── */
 
 .composer-wrap {
-  padding: 24px 0 96px 0;
+  padding: 24px 0 24px 0;
   background: var(--app-bg);
 }
 

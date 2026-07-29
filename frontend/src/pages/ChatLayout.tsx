@@ -6,7 +6,7 @@ import { ChatHome } from "./ChatHome";
 
 export function ChatLayout() {
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+    <div style={{ display: 'flex', flex: 1, minHeight: 0, width: '100%' }}>
       <ChatSidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <Routes>

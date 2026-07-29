@@ -23,7 +23,7 @@ export function ChatHome() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
         <h2 style={{ marginBottom: '8px', color: 'var(--ink)', textAlign: 'center' }}>How can I help you today?</h2>
         <p style={{ color: 'var(--text-light)', textAlign: 'center' }}>
