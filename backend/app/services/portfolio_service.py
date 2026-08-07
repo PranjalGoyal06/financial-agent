@@ -44,8 +44,8 @@ class PortfolioService:
         for raw_row in reader:
             try:
                 row = PortfolioRow.from_mapping(raw_row)
-            except ValueError as exc:
-                rejected.append({"row": raw_row, "reason": str(exc)})
+            except ValueError:
+                rejected.append({"row": raw_row, "reason": "invalid_row"})
                 continue
 
             resolution = yfinance_client.resolve_ticker(row.ticker, row.exchange)
@@ -53,11 +53,7 @@ class PortfolioService:
                 rejected.append(
                     {
                         "row": raw_row,
-                        "reason": (
-                            resolution.error.message
-                            if resolution.error
-                            else "Ticker could not be resolved."
-                        ),
+                        "reason": "Ticker could not be resolved.",
                     }
                 )
                 continue
