@@ -23,16 +23,16 @@ async def import_portfolio(file: UploadFile = File(...)) -> dict[str, Any]:
 
     try:
         return DEFAULT_PORTFOLIO_SERVICE.ingest_csv(content, source_filename=file.filename)
-    except ValueError as exc:
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:  # noqa: BLE001
+            detail="Portfolio CSV is invalid.",
+        )
+    except Exception:  # noqa: BLE001
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Portfolio import failed.",
-        ) from exc
+        )
 
 
 @router.get("/holdings")
