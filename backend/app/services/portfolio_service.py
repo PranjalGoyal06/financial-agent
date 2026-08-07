@@ -92,10 +92,10 @@ class PortfolioService:
         holdings = [holding for _, holding in imported_rows]
         try:
             self.repository.replace_for_user(self.user_id, holdings)
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             for raw_row, _holding in imported_rows:
                 rejected.append(
-                    {"row": raw_row, "reason": f"database_write_failed: {exc}"}
+                    {"row": raw_row, "reason": "database_write_failed"}
                 )
             return {
                 "import_id": import_id,
