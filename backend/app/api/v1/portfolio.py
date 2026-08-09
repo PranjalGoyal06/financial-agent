@@ -21,7 +21,18 @@ async def import_portfolio(file: UploadFile = File(...)) -> dict[str, Any]:
             detail="Portfolio CSV must be UTF-8 encoded.",
         ) from exc
 
-    return DEFAULT_PORTFOLIO_SERVICE.ingest_csv(content, source_filename=file.filename)
+    try:
+        return DEFAULT_PORTFOLIO_SERVICE.ingest_csv(content, source_filename=file.filename)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Portfolio CSV is invalid.",
+        )
+    except Exception:  # noqa: BLE001
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Portfolio import failed.",
+        )
 
 
 @router.get("/holdings")
